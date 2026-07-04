@@ -24,6 +24,7 @@ Browse by category, country, or language · star favorites · zap between channe
 - **Rich, responsive UI** — glassmorphism, animated ambient gradients, and a modern dark theme; a slide-in drawer on mobile, sidebar on desktop.
 - **Fast & lean** — no animation library, no runtime blur filters, `rAF`-throttled scrolling, and the player (incl. hls.js) is **lazy-loaded** so the initial bundle is ~54 kB gzipped.
 - **Accessible** — the player is a focus-trapped `role="dialog"`, icon buttons are labeled, and all animations respect `prefers-reduced-motion`.
+- **Google AdSense ready** — display ad slots (header, in-grid, sidebar) wired to env-configured ad units, with themed placeholders when ads are off. See [Monetization](#-monetization-adsense).
 
 ## 🚀 Getting started
 
@@ -42,6 +43,8 @@ npm run build
 # 4. Preview the production build
 npm run preview
 ```
+
+> **Environment variables** are optional and only used for ads. Copy `.env.example` to `.env` to configure them — see [Monetization](#-monetization-adsense). Vite bakes env values in at **build time**, so restart the dev server / rebuild after editing `.env`.
 
 ## 🎮 Keyboard shortcuts (in the player)
 
@@ -69,12 +72,14 @@ src/
 ├── components/
 │   ├── Player.jsx           # Lazy-loaded HLS player modal (hls.js)
 │   ├── ChannelCard.jsx      # Memoized channel tile
-│   └── VirtualGrid.jsx      # Windowed/virtualized channel grid
+│   ├── VirtualGrid.jsx      # Windowed/virtualized channel grid
+│   └── AdSlot.jsx           # Reusable AdSense display unit (+ placeholder)
 └── lib/
     ├── m3u.js               # Tolerant M3U (extended) playlist parser
     ├── useChannels.js       # Fetches & parses a playlist axis (with cache)
     ├── useLibrary.js        # Favorites + recently-watched (localStorage)
-    └── useHashState.js      # Deep-linking via the URL hash
+    ├── useHashState.js      # Deep-linking via the URL hash
+    └── ads.js               # AdSense config + lazy script loader
 ```
 
 ## 🌐 How the data works
@@ -88,6 +93,31 @@ Nova fetches iptv-org's aggregate M3U playlists at runtime and parses them in th
 | Language | `index.language.m3u` |
 
 In development, requests go through a small Vite proxy (`/iptv/…`) to avoid CORS; in production the raw `iptv-org.github.io` URLs are used directly (they serve permissive CORS headers).
+
+## 💰 Monetization (AdSense)
+
+The app ships with **Google AdSense display ad slots** in three placements — under the header, between the hero and the channel grid, and in the sidebar/drawer. Ads are **off by default**; when disabled (or before a real ad unit is configured), each slot renders a themed *"Ad space"* placeholder so the layout looks right in development.
+
+**Configuration** lives in [`.env`](.env.example) (all vars are `VITE_`-prefixed so Vite exposes them to the client):
+
+| Variable | Purpose |
+| -------- | ------- |
+| `VITE_ADS` | Master switch — `1`/`true` to enable, `0`/empty for ad-free |
+| `VITE_ADSENSE_CLIENT` | Your AdSense client/publisher ID (`ca-pub-…`) |
+| `VITE_ADSENSE_SLOT_HEADER` | Ad unit slot ID for the header banner |
+| `VITE_ADSENSE_SLOT_SIDEBAR` | Ad unit slot ID for the sidebar unit |
+| `VITE_ADSENSE_SLOT_GRID` | Ad unit slot ID for the in-grid unit |
+
+**Going live:**
+
+1. Get your site approved in [AdSense](https://adsense.google.com) (requires a live, public domain).
+2. Create three **Display** ad units and copy each unit's `data-ad-slot` number.
+3. Copy `.env.example` → `.env`, set `VITE_ADSENSE_CLIENT`, the three slot IDs, and `VITE_ADS=1`.
+4. Rebuild (`npm run build`) — placeholders become real ads.
+
+> The AdSense loader `<script>` (with the publisher ID) is included in [`index.html`](index.html) for site verification. `.env` is gitignored; only `.env.example` is committed.
+>
+> **Policy note:** AdSense prohibits monetizing copyrighted video you're not authorized to distribute. These are third-party IPTV streams — confirm your usage is authorized before enabling ads, or you risk ad-unit disapproval / account penalties.
 
 ## ⚠️ Notes & limitations
 
