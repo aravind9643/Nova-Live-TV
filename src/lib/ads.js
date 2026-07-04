@@ -33,22 +33,24 @@ export const ADS_ENABLED = env.VITE_ADS === '1' || env.VITE_ADS === 'true';
 // A publisher ID is only valid once the placeholder "X" template is replaced.
 export const HAS_REAL_PUBLISHER = !PUBLISHER_ID.includes('X');
 
-// Inject the AdSense loader script once, lazily, only when ads are enabled and
-// a real publisher ID is set. Safe to call multiple times.
+// The AdSense loader <script> lives statically in index.html, so we do NOT inject
+// another one here (a second copy doubles AdSense's main-thread work and causes
+// page jank). We just confirm ads are enabled and the loader script is present.
 let loaderPromise = null;
 export function loadAdSense() {
   if (!ADS_ENABLED || !HAS_REAL_PUBLISHER) return Promise.resolve(false);
   if (loaderPromise) return loaderPromise;
 
   loaderPromise = new Promise((resolve) => {
-    const existing = document.querySelector('script[data-adsbygoogle-loader]');
+    // Present in index.html for approval + serving.
+    const existing = document.querySelector('script[src*="adsbygoogle.js"]');
     if (existing) return resolve(true);
 
+    // Fallback: inject once if it wasn't in the HTML.
     const s = document.createElement('script');
     s.async = true;
     s.crossOrigin = 'anonymous';
     s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${PUBLISHER_ID}`;
-    s.setAttribute('data-adsbygoogle-loader', '');
     s.onload = () => resolve(true);
     s.onerror = () => resolve(false);
     document.head.appendChild(s);

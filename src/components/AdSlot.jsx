@@ -11,7 +11,8 @@ import { PUBLISHER_ID, SLOTS, ADS_ENABLED, HAS_REAL_PUBLISHER, loadAdSense } fro
 // When ads are disabled or the publisher ID hasn't been set, it renders a labeled
 // placeholder that occupies the same footprint — so the layout looks right in dev.
 export default function AdSlot({ slot = 'grid', format = 'auto', className = '' }) {
-  const ref = useRef(null);
+  const ref = useRef(null);      // the <ins>
+  const boxRef = useRef(null);   // the container we measure
   const pushed = useRef(false);
   const [live, setLive] = useState(false);
 
@@ -19,8 +20,12 @@ export default function AdSlot({ slot = 'grid', format = 'auto', className = '' 
     let cancelled = false;
     if (!ADS_ENABLED || !HAS_REAL_PUBLISHER) return;
 
-    loadAdSense().then((ok) => {
-      if (cancelled || !ok || pushed.current) return;
+    // Push exactly once, and ONLY when the slot has a real width. Pushing at
+    // width=0 makes AdSense throw and busy-retry, which janks the whole page.
+    const tryPush = () => {
+      if (cancelled || pushed.current) return true;
+      const box = boxRef.current;
+      if (!box || box.clientWidth < 50) return false; // not laid out yet
       try {
         // eslint-disable-next-line no-undef
         (window.adsbygoogle = window.adsbygoogle || []).push({});
@@ -29,7 +34,17 @@ export default function AdSlot({ slot = 'grid', format = 'auto', className = '' 
       } catch {
         /* ad blocker or not-ready — leave placeholder */
       }
+      return true;
+    };
+
+    loadAdSense().then((ok) => {
+      if (cancelled || !ok) return;
+      if (tryPush()) return;
+      // Width not ready yet — wait for it, then push once and disconnect.
+      const ro = new ResizeObserver(() => { if (tryPush()) ro.disconnect(); });
+      if (boxRef.current) ro.observe(boxRef.current);
     });
+
     return () => { cancelled = true; };
   }, []);
 
@@ -45,7 +60,7 @@ export default function AdSlot({ slot = 'grid', format = 'auto', className = '' 
   }
 
   return (
-    <div className={`ad-slot ${live ? 'ad-live' : ''} ${className}`}>
+    <div ref={boxRef} className={`ad-slot ${live ? 'ad-live' : ''} ${className}`}>
       {label}
       <ins
         ref={ref}
