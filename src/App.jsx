@@ -8,6 +8,7 @@ import { useChannels, AXES } from './lib/useChannels';
 import { useLibrary, channelKey } from './lib/useLibrary';
 import { useHashState } from './lib/useHashState';
 import VirtualGrid from './components/VirtualGrid';
+import AdSlot from './components/AdSlot';
 
 // Code-split the player so hls.js only downloads when the first channel is opened.
 const Player = lazy(() => import('./components/Player'));
@@ -202,6 +203,7 @@ export default function App() {
             <div className="menu-empty">No {AXES[axis].label.toLowerCase()} matches “{menuFilter}”.</div>
           )}
         </nav>
+        <AdSlot slot="sidebar" format="rectangle" className="ad-sidebar" />
         <div className="sidebar-foot">Streams by iptv-org · free &amp; open</div>
       </aside>
 
@@ -226,6 +228,8 @@ export default function App() {
 
         {status === 'ready' && (
           <>
+            <AdSlot slot="header" format="horizontal" className="ad-leaderboard" />
+
             <section className="hero fade-in">
               <div className="hero-glow" />
               <div className="hero-inner">
@@ -240,6 +244,8 @@ export default function App() {
                 <p>Zap through global live TV — news, sports, movies and more — in glorious real time.</p>
               </div>
             </section>
+
+            <AdSlot slot="grid" format="horizontal" className="ad-grid" />
 
             {filtered.length > 0 ? (
               <VirtualGrid

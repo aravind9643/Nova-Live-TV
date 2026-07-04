@@ -128,6 +128,9 @@ export default function Player({ channel, onClose, onPrev, onNext, favorite, onT
         <div className="player-video-wrap">
           <video ref={videoRef} playsInline autoPlay className="player-video" />
 
+          {/* Floating close button over the video (primary close on mobile). */}
+          <button className="player-close-float" onClick={onClose} aria-label="Close player"><X size={22} /></button>
+
           {status === 'loading' && (
             <div className="player-state">
               <Loader2 className="spin" size={40} />

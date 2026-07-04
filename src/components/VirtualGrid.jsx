@@ -8,12 +8,16 @@ const GAP = 18;
 const OVERSCAN = 4;      // extra rows above/below the viewport
 const EST_ROW = 190;     // initial row-height guess until we measure a real card
 
-// Min card width per breakpoint — since we set grid columns inline (which overrides
-// any CSS media query), the responsive column logic must live here.
-function minCardFor(width) {
-  if (width <= 560) return Math.floor((width - GAP - 36) / 2); // exactly 2 cols on phones
-  if (width <= 860) return 140;                                 // tablet
-  return 168;                                                   // desktop
+// Decide the column count directly from the grid's own inner width (NOT the window
+// width — they disagree when the sidebar/drawer changes the available space). We set
+// columns inline, so this responsive logic must live here rather than in CSS.
+function colsFor(inner) {
+  if (!inner || inner < 1) return 2;      // pre-layout fallback: never collapse to 1
+  if (inner < 380) return 2;              // small phones → 2 across
+  if (inner < 560) return 3;              // large phones → 3
+  if (inner < 760) return 4;              // tablet
+  if (inner < 1100) return 5;
+  return 6;                               // desktop
 }
 
 export default function VirtualGrid({ items, scrollParent, onPlay, isFavorite, onToggleFavorite }) {
@@ -31,11 +35,7 @@ export default function VirtualGrid({ items, scrollParent, onPlay, isFavorite, o
       const style = getComputedStyle(el);
       const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
       const inner = el.clientWidth - padX;
-      // Read the real column gap from the rendered grid (varies by breakpoint).
-      const gap = gridRef.current ? parseFloat(getComputedStyle(gridRef.current).columnGap) || GAP : GAP;
-      const minCard = minCardFor(window.innerWidth);
-      const next = Math.max(1, Math.floor((inner + gap) / (minCard + gap)));
-      setCols(next);
+      setCols(colsFor(inner));
     };
     measure();
     const ro = new ResizeObserver(measure);

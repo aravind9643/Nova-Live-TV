@@ -262,6 +262,34 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .load-more:hover { transform: translateY(-2px); box-shadow: 0 14px 38px rgba(124,92,255,0.5); }
 
+/* ---------- Ad slots ---------- */
+.ad-slot {
+  position: relative; width: 100%; border: 1px solid var(--border); border-radius: 16px;
+  background: rgba(255,255,255,0.02); overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.ad-label {
+  position: absolute; top: 6px; left: 10px; font-size: 9px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--muted); opacity: 0.6;
+}
+.ad-slot .adsbygoogle { width: 100%; }
+
+/* Placeholder shown in dev / before AdSense is configured */
+.ad-placeholder {
+  background: repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0 12px, rgba(255,255,255,0.04) 12px 24px);
+  color: var(--muted);
+}
+.ad-placeholder-hint { font-size: 12px; font-weight: 600; letter-spacing: 0.5px; opacity: 0.5; }
+
+/* Placement-specific footprints */
+.ad-leaderboard { min-height: 90px; margin: 4px 0 18px; }
+.ad-grid { min-height: 90px; margin: 0 0 22px; }
+.ad-sidebar { min-height: 200px; margin: 12px 2px 4px; flex: 0 0 auto; }
+
+@media (max-width: 860px) {
+  .ad-leaderboard, .ad-grid { min-height: 70px; margin-bottom: 14px; }
+}
+
 /* ---------- Player ---------- */
 .player-overlay {
   position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px;
@@ -300,6 +328,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .player-info-text { min-width: 0; }
 .icon-btn.faved { color: #ffd15c; }
+
+/* Floating close-over-video — hidden on desktop (the toolbar X is enough there). */
+.player-close-float {
+  display: none; position: absolute; top: 12px; right: 12px; z-index: 4;
+  width: 40px; height: 40px; border-radius: 50%; place-items: center;
+  background: rgba(0,0,0,0.55); color: #fff; backdrop-filter: none;
+}
+.player-close-float:hover { background: rgba(0,0,0,0.75); }
 
 .player-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; }
 .player-info { display: flex; align-items: center; gap: 14px; min-width: 0; }
@@ -350,11 +386,21 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   /* Column count is set inline by VirtualGrid; we only tune the gap here. */
   .grid { gap: 14px; }
 
-  /* Player fills more of the screen and stacks its bar. */
-  .player-overlay { padding: 0; align-items: flex-start; overflow-y: auto; }
-  .player-shell { width: 100vw; height: auto; min-height: 100dvh; border-radius: 0; display: flex; flex-direction: column; justify-content: center; }
-  .zap { width: 44px; height: 44px; opacity: 1; background: rgba(0,0,0,0.35); }
-  .zap-prev { left: 8px; } .zap-next { right: 8px; }
+  /* Player: full-screen sheet — video pinned near the top, info/controls below. */
+  .player-overlay { padding: 0; align-items: stretch; }
+  .player-shell {
+    width: 100vw; height: 100dvh; border-radius: 0;
+    display: flex; flex-direction: column; justify-content: flex-start;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .player-video-wrap { width: 100%; }
+
+  /* Floating close is the primary close on touch. */
+  .player-close-float { display: grid; top: calc(12px + env(safe-area-inset-top, 0px)); }
+
+  /* Bigger, always-visible zap targets. */
+  .zap { width: 46px; height: 46px; opacity: 1; background: rgba(0,0,0,0.4); }
+  .zap-prev { left: 10px; } .zap-next { right: 10px; }
 }
 
 /* Phone: tighter grid, smaller player chrome, always-visible favorite star. */
@@ -364,15 +410,23 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .appbar-search { max-width: none; }
 
   .grid { gap: 12px; }
+  .card-thumb { aspect-ratio: 16/11; }   /* a touch shorter so more cards fit per screen */
+  .card-thumb img { width: 68%; height: 68%; }
   .card-name { font-size: 12.5px; }
   .card-group { font-size: 10.5px; }
-  .card-fav { opacity: 1; transform: none; width: 28px; height: 28px; }
+  .card-fav { opacity: 1; transform: none; width: 30px; height: 30px; }
 
-  .player-bar { flex-direction: column; align-items: stretch; gap: 12px; padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .player-bar {
+    flex-direction: column; align-items: stretch; gap: 14px;
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  }
   .player-info { width: 100%; }
-  .player-controls { justify-content: space-between; }
-  .icon-btn { width: 46px; height: 46px; flex: 1; max-width: 64px; }
-  .player-title { font-size: 15px; }
+  /* The floating X handles close on mobile — drop the redundant toolbar close. */
+  .player-controls { justify-content: space-between; gap: 10px; }
+  .player-controls .close { display: none; }
+  .icon-btn { width: 48px; height: 48px; flex: 1; max-width: none; }
+  .player-title { font-size: 15.5px; }
+  .player-logo { width: 40px; height: 40px; }
 
   .hero { padding: 18px 18px; margin: 2px 0 14px; }
   .hero p { display: none; }
@@ -384,4 +438,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* Landscape phone: keep the video large, hide the hero. */
 @media (max-width: 860px) and (orientation: landscape) {
   .hero { display: none; }
+
+  /* Player: let the video own the whole screen; float the info as a slim overlay. */
+  .player-shell { justify-content: center; }
+  .player-video-wrap { flex: 1; aspect-ratio: auto; min-height: 0; }
+  .player-video { object-fit: contain; }
+  .player-bar {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 4;
+    flex-direction: row; align-items: center;
+    background: linear-gradient(0deg, rgba(0,0,0,0.75), transparent);
+    padding: 24px 16px 12px;
+  }
+  .player-controls .close { display: grid; }
+  .icon-btn { flex: 0 0 auto; width: 42px; height: 42px; }
 }
