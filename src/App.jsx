@@ -40,6 +40,11 @@ export default function App() {
   const deferredQuery = useDeferredValue(query);
   const mainRef = useRef(null);
 
+  // Force dark theme class cleanup on mount just in case it was stored previously
+  useEffect(() => {
+    document.body.classList.remove('light-theme');
+  }, []);
+
   const source = activeGroup === FAVORITES ? favorites
     : activeGroup === RECENT ? recent
     : channels;
@@ -100,9 +105,6 @@ export default function App() {
 
   return (
     <div className={`app ${playing ? 'playing' : ''}`}>
-      <div className="bg-orbs" aria-hidden>
-        <span className="orb orb-a" /><span className="orb orb-b" /><span className="orb orb-c" />
-      </div>
 
       {/* ---------- Top header ---------- */}
       <header className="appbar">
@@ -231,7 +233,6 @@ export default function App() {
             <AdSlot slot="header" format="horizontal" className="ad-leaderboard" />
 
             <section className="hero fade-in">
-              <div className="hero-glow" />
               <div className="hero-inner">
                 {activeGroup !== 'All' && (
                   <span className="hero-badge">{
