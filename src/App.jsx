@@ -46,33 +46,32 @@ export default function App() {
 
     const css = `
       .groups, .main {
-        scrollbar-width: thin !important;
-        scrollbar-color: rgba(59, 130, 246, 0.6) rgba(15, 23, 42, 0.6) !important;
+        scrollbar-width: auto !important;
+        scrollbar-color: #3b82f6 #0f172a !important;
       }
       .groups::-webkit-scrollbar,
       .main::-webkit-scrollbar,
       ::-webkit-scrollbar {
         width: 8px !important;
         height: 8px !important;
-        display: block !important;
       }
       .groups::-webkit-scrollbar-track,
       .main::-webkit-scrollbar-track,
       ::-webkit-scrollbar-track {
-        background: rgba(15, 23, 42, 0.6) !important;
+        background: #0f172a !important;
         border-radius: 4px !important;
       }
       .groups::-webkit-scrollbar-thumb,
       .main::-webkit-scrollbar-thumb,
       ::-webkit-scrollbar-thumb {
-        background: rgba(59, 130, 246, 0.6) !important;
+        background: #3b82f6 !important;
         border-radius: 10px !important;
         min-height: 40px !important;
       }
       .groups::-webkit-scrollbar-thumb:hover,
       .main::-webkit-scrollbar-thumb:hover,
       ::-webkit-scrollbar-thumb:hover {
-        background: rgba(59, 130, 246, 0.85) !important;
+        background: #60a5fa !important;
       }
     `;
     const style = document.createElement('style');

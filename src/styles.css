@@ -64,10 +64,10 @@ body {
 }
 button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
 
-/* ---- Custom Scrollbars ---- */
-* {
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(59, 130, 246, 0.5) rgba(15, 23, 42, 0.5) !important;
+/* ---- Custom Scrollbars (Permanent & Non-Hiding) ---- */
+.groups, .main {
+  scrollbar-width: auto !important;
+  scrollbar-color: #3b82f6 #0f172a !important;
 }
 
 .groups::-webkit-scrollbar,
@@ -80,14 +80,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .groups::-webkit-scrollbar-track,
 .main::-webkit-scrollbar-track,
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.5) !important;
+  background: #0f172a !important;
   border-radius: 4px !important;
 }
 
 .groups::-webkit-scrollbar-thumb,
 .main::-webkit-scrollbar-thumb,
 ::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.5) !important;
+  background: #3b82f6 !important;
   border-radius: 10px !important;
   min-height: 40px !important;
 }
@@ -95,7 +95,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .groups::-webkit-scrollbar-thumb:hover,
 .main::-webkit-scrollbar-thumb:hover,
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.8) !important;
+  background: #60a5fa !important;
 }
 
 /* ---------- Layout ---------- */
