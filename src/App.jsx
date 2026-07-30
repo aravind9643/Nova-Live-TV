@@ -40,9 +40,57 @@ export default function App() {
   const deferredQuery = useDeferredValue(query);
   const mainRef = useRef(null);
 
-  // Force dark theme class cleanup on mount just in case it was stored previously
+  // Force dark theme class cleanup and lock custom scrollbar styles at the bottom of <head>
   useEffect(() => {
     document.body.classList.remove('light-theme');
+
+    const css = `
+      .groups, .main {
+        scrollbar-width: thin !important;
+        scrollbar-color: rgba(59, 130, 246, 0.6) rgba(15, 23, 42, 0.6) !important;
+      }
+      .groups::-webkit-scrollbar,
+      .main::-webkit-scrollbar,
+      ::-webkit-scrollbar {
+        width: 8px !important;
+        height: 8px !important;
+        display: block !important;
+      }
+      .groups::-webkit-scrollbar-track,
+      .main::-webkit-scrollbar-track,
+      ::-webkit-scrollbar-track {
+        background: rgba(15, 23, 42, 0.6) !important;
+        border-radius: 4px !important;
+      }
+      .groups::-webkit-scrollbar-thumb,
+      .main::-webkit-scrollbar-thumb,
+      ::-webkit-scrollbar-thumb {
+        background: rgba(59, 130, 246, 0.6) !important;
+        border-radius: 10px !important;
+        min-height: 40px !important;
+      }
+      .groups::-webkit-scrollbar-thumb:hover,
+      .main::-webkit-scrollbar-thumb:hover,
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(59, 130, 246, 0.85) !important;
+      }
+    `;
+    const style = document.createElement('style');
+    style.id = 'custom-scrollbars-override';
+    style.textContent = css;
+    document.head.appendChild(style);
+
+    const observer = new MutationObserver(() => {
+      if (document.head.lastElementChild !== style) {
+        document.head.appendChild(style);
+      }
+    });
+    observer.observe(document.head, { childList: true });
+
+    return () => {
+      observer.disconnect();
+      style.remove();
+    };
   }, []);
 
   const source = activeGroup === FAVORITES ? favorites
