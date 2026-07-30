@@ -100,6 +100,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---------- Layout ---------- */
 :root { --header-h: 68px; }
+#root, .app {
+  height: 100vh;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 100dvh !important;
+}
+
 .app {
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
@@ -107,9 +114,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   grid-template-areas:
     "header header"
     "sidebar main";
-  height: 100vh;
-  height: 100dvh; /* dvh accounts for mobile browser chrome (address bar) */
   position: relative;
+}
+.sidebar, .main {
+  max-height: calc(100dvh - var(--header-h)) !important;
 }
 .appbar { grid-area: header; }
 .sidebar { grid-area: sidebar; }

@@ -45,6 +45,14 @@ export default function App() {
     document.body.classList.remove('light-theme');
 
     const css = `
+      #root, .app {
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        min-height: 100dvh !important;
+      }
+      .sidebar, .main {
+        max-height: calc(100dvh - 68px) !important;
+      }
       .groups, .main {
         scrollbar-width: auto !important;
         scrollbar-color: #3b82f6 #0f172a !important;
