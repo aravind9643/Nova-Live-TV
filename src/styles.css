@@ -299,12 +299,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: relative; width: 100%; border: 1px solid var(--border); border-radius: 16px;
   background: var(--bg-glass); overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
+  pointer-events: none;       /* let scroll pass through the container */
+  max-height: 320px;          /* prevent unbounded expansion */
 }
 .ad-label {
   position: absolute; top: 6px; left: 10px; font-size: 9px; letter-spacing: 1px;
   text-transform: uppercase; color: var(--muted); opacity: 0.6;
 }
-.ad-slot .adsbygoogle { width: 100%; }
+.ad-slot .adsbygoogle { width: 100%; pointer-events: auto; }  /* ads stay clickable */
 
 /* Placeholder shown in dev / before AdSense is configured */
 .ad-placeholder {
