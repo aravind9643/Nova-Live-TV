@@ -33,20 +33,28 @@ export const ADS_ENABLED = env.VITE_ADS === '1' || env.VITE_ADS === 'true';
 // A publisher ID is only valid once the placeholder "X" template is replaced.
 export const HAS_REAL_PUBLISHER = !PUBLISHER_ID.includes('X');
 
-// The AdSense loader <script> lives statically in index.html, so we do NOT inject
-// another one here (a second copy doubles AdSense's main-thread work and causes
-// page jank). We just confirm ads are enabled and the loader script is present.
+// ---------------------------------------------------------------------------
+// Lazy-load the AdSense script: do NOT load it eagerly in index.html.
+// We wait until the page is idle, then inject the script once. This avoids
+// blocking first-paint and first-interactive.
+// ---------------------------------------------------------------------------
 let loaderPromise = null;
+
 export function loadAdSense() {
   if (!ADS_ENABLED || !HAS_REAL_PUBLISHER) return Promise.resolve(false);
   if (loaderPromise) return loaderPromise;
 
   loaderPromise = new Promise((resolve) => {
-    // Present in index.html for approval + serving.
     const existing = document.querySelector('script[src*="adsbygoogle.js"]');
-    if (existing) return resolve(true);
+    if (existing) {
+      // Script tag already in the DOM (e.g. from index.html) — just wait for it
+      if (existing.dataset.loaded === '1') return resolve(true);
+      existing.addEventListener('load', () => resolve(true));
+      existing.addEventListener('error', () => resolve(false));
+      return;
+    }
 
-    // Fallback: inject once if it wasn't in the HTML.
+    // Inject the script lazily
     const s = document.createElement('script');
     s.async = true;
     s.crossOrigin = 'anonymous';
@@ -56,4 +64,50 @@ export function loadAdSense() {
     document.head.appendChild(s);
   });
   return loaderPromise;
+}
+
+// ---------------------------------------------------------------------------
+// Staggered push queue.
+//
+// AdSense's `adsbygoogle.push({})` does heavy synchronous DOM work. If all ad
+// slots push at the same time the main thread freezes for several seconds.
+// This queue spaces pushes apart and runs each during an idle window so the
+// page stays responsive.
+// ---------------------------------------------------------------------------
+const STAGGER_MS = 2000; // minimum gap between consecutive pushes
+let pushQueue = [];
+let draining = false;
+
+function idleCallback(fn) {
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(fn, { timeout: 4000 });
+  } else {
+    setTimeout(fn, 50);
+  }
+}
+
+function drainQueue() {
+  if (draining || pushQueue.length === 0) return;
+  draining = true;
+
+  const next = pushQueue.shift();
+  idleCallback(() => {
+    next();
+    draining = false;
+    if (pushQueue.length > 0) {
+      setTimeout(drainQueue, STAGGER_MS);
+    }
+  });
+}
+
+/**
+ * Schedule an ad push that will run during an idle window, staggered from
+ * other pushes so the main thread is never blocked by multiple ads at once.
+ */
+export function schedulePush(fn) {
+  pushQueue.push(fn);
+  if (!draining) {
+    // First push gets a small initial delay to let the page finish rendering.
+    setTimeout(drainQueue, pushQueue.length === 1 ? 1500 : 0);
+  }
 }

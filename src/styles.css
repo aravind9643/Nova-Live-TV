@@ -299,14 +299,25 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: relative; width: 100%; border: 1px solid var(--border); border-radius: 16px;
   background: var(--bg-glass); overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  pointer-events: none;       /* let scroll pass through the container */
-  max-height: 320px;          /* prevent unbounded expansion */
+  max-height: 320px;
+  contain: layout style;  /* isolate layout recalcs from the rest of the page */
 }
 .ad-label {
   position: absolute; top: 6px; left: 10px; font-size: 9px; letter-spacing: 1px;
-  text-transform: uppercase; color: var(--muted); opacity: 0.6;
+  text-transform: uppercase; color: var(--muted); opacity: 0.6; z-index: 2;
 }
-.ad-slot .adsbygoogle { width: 100%; pointer-events: auto; }  /* ads stay clickable */
+.ad-slot .adsbygoogle { width: 100%; }
+
+/* Transparent overlay that prevents the AdSense iframe from capturing scroll/
+   touch events. On hover it briefly vanishes so the user can click the ad. */
+.ad-scroll-guard {
+  position: absolute; inset: 0; z-index: 1;
+  background: transparent;
+  cursor: pointer;
+}
+.ad-scroll-guard:hover {
+  pointer-events: none; /* disappear on hover so the ad underneath is clickable */
+}
 
 /* Placeholder shown in dev / before AdSense is configured */
 .ad-placeholder {
