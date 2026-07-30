@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { PUBLISHER_ID, SLOTS, ADS_ENABLED, HAS_REAL_PUBLISHER, loadAdSense } from '../lib/ads';
+import { PUBLISHER_ID, SLOTS, ADS_ENABLED, HAS_REAL_PUBLISHER } from '../lib/ads';
 
 // AdSense display unit component.
 export default function AdSlot({ slot = 'grid', format = 'auto', className = '' }) {
@@ -9,20 +9,16 @@ export default function AdSlot({ slot = 'grid', format = 'auto', className = '' 
 
   useEffect(() => {
     if (!ADS_ENABLED || !HAS_REAL_PUBLISHER || pushed.current) return;
-    let cancelled = false;
 
-    loadAdSense().then((ok) => {
-      if (cancelled || !ok || pushed.current) return;
-      try {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
-        pushed.current = true;
-        setLive(true);
-      } catch {
-        /* ad blocker or push error */
-      }
-    });
-
-    return () => { cancelled = true; };
+    // Google AdSense is designed to accept .push({}) immediately onto window.adsbygoogle array,
+    // even before adsbygoogle.js finishes downloading asynchronously.
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+      pushed.current = true;
+      setLive(true);
+    } catch {
+      /* ad blocker or error */
+    }
   }, []);
 
   const label = <span className="ad-label">Advertisement</span>;
