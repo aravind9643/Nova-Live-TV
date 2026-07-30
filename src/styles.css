@@ -70,12 +70,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   scrollbar-color: rgba(59, 130, 246, 0.5) rgba(15, 23, 42, 0.5) !important;
 }
 
-.groups,
-.main,
+.groups::-webkit-scrollbar,
+.main::-webkit-scrollbar,
 ::-webkit-scrollbar {
   width: 8px !important;
   height: 8px !important;
-  display: block !important;
 }
 
 .groups::-webkit-scrollbar-track,
