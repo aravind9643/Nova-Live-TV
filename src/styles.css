@@ -307,16 +307,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .ad-slot .adsbygoogle { width: 100%; }
 
-/* Transparent overlay that prevents the AdSense iframe from capturing scroll/
-   touch events. On hover it briefly vanishes so the user can click the ad. */
-.ad-scroll-guard {
-  position: absolute; inset: 0; z-index: 1;
-  background: transparent;
-  cursor: pointer;
-}
-.ad-scroll-guard:hover {
-  pointer-events: none; /* disappear on hover so the ad underneath is clickable */
-}
+
 
 /* Placeholder shown in dev / before AdSense is configured */
 .ad-placeholder {
