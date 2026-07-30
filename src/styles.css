@@ -66,25 +66,37 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---- Custom Scrollbars ---- */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(59, 130, 246, 0.45) rgba(15, 23, 42, 0.5);
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(59, 130, 246, 0.5) rgba(15, 23, 42, 0.5) !important;
 }
+
+.groups,
+.main,
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 8px !important;
+  height: 8px !important;
+  display: block !important;
 }
+
+.groups::-webkit-scrollbar-track,
+.main::-webkit-scrollbar-track,
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(15, 23, 42, 0.5) !important;
+  border-radius: 4px !important;
 }
+
+.groups::-webkit-scrollbar-thumb,
+.main::-webkit-scrollbar-thumb,
 ::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.45);
-  border-radius: 10px;
-  border: 2px solid transparent;
-  background-clip: content-box;
+  background: rgba(59, 130, 246, 0.5) !important;
+  border-radius: 10px !important;
+  min-height: 40px !important;
 }
+
+.groups::-webkit-scrollbar-thumb:hover,
+.main::-webkit-scrollbar-thumb:hover,
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.75);
-  background-clip: content-box;
+  background: rgba(59, 130, 246, 0.8) !important;
 }
 
 /* ---------- Layout ---------- */
