@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { PUBLISHER_ID, SLOTS, ADS_ENABLED, HAS_REAL_PUBLISHER, loadAdSense, schedulePush } from '../lib/ads';
+import { PUBLISHER_ID, SLOTS, ADS_ENABLED, HAS_REAL_PUBLISHER, loadAdSense } from '../lib/ads';
 
 // AdSense display unit component.
 export default function AdSlot({ slot = 'grid', format = 'auto', className = '' }) {
@@ -13,19 +13,13 @@ export default function AdSlot({ slot = 'grid', format = 'auto', className = '' 
 
     loadAdSense().then((ok) => {
       if (cancelled || !ok || pushed.current) return;
-
-      schedulePush(() => {
-        if (cancelled || pushed.current) return;
-        const box = boxRef.current;
-        if (!box || box.clientWidth < 50) return;
-        try {
-          (window.adsbygoogle = window.adsbygoogle || []).push({});
-          pushed.current = true;
-          setLive(true);
-        } catch {
-          /* ad blocker or push error */
-        }
-      });
+      try {
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+        pushed.current = true;
+        setLive(true);
+      } catch {
+        /* ad blocker or push error */
+      }
     });
 
     return () => { cancelled = true; };
