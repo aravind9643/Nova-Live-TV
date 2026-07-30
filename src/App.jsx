@@ -205,7 +205,6 @@ export default function App() {
             <div className="menu-empty">No {AXES[axis].label.toLowerCase()} matches “{menuFilter}”.</div>
           )}
         </nav>
-        <AdSlot slot="sidebar" format="rectangle" className="ad-sidebar" />
         <div className="sidebar-foot">Streams by iptv-org · free &amp; open</div>
       </aside>
 

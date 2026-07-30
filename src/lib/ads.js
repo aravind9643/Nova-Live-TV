@@ -1,113 +1,97 @@
 // ---------------------------------------------------------------------------
 // Google AdSense configuration.
 //
-// SETUP (once your AdSense account is approved):
-//   1. Replace PUBLISHER_ID with your real "ca-pub-XXXXXXXXXXXXXXXX" client ID.
-//   2. In your AdSense dashboard create three display ad units and paste each
-//      unit's data-ad-slot number into SLOTS below.
-//   3. Set ENABLED to true (or via env: VITE_ADS=1).
-//
-// Until then ENABLED stays false and AdSlot renders a labeled placeholder, so
-// development stays ad-free and nothing calls Google.
-//
 // NOTE: AdSense requires that the site's content complies with its program
 // policies. Streaming third-party video you don't own the rights to can violate
 // those policies — verify your usage is authorized before going live.
 // ---------------------------------------------------------------------------
 
-// All values are read from the environment (see .env / .env.example), with the
-// literals below as fallbacks. In Vite, env vars must be prefixed with VITE_.
 const env = import.meta.env;
 
 export const PUBLISHER_ID = env.VITE_ADSENSE_CLIENT || 'ca-pub-9316330718026325';
 
 export const SLOTS = {
-  header: env.VITE_ADSENSE_SLOT_HEADER || '0000000000',   // leaderboard / banner under the header
-  sidebar: env.VITE_ADSENSE_SLOT_SIDEBAR || '0000000000', // square/vertical unit in the sidebar-drawer
-  grid: env.VITE_ADSENSE_SLOT_GRID || '0000000000',       // in-feed unit inside the channel grid
+  header: env.VITE_ADSENSE_SLOT_HEADER || '0000000000',
+  sidebar: env.VITE_ADSENSE_SLOT_SIDEBAR || '0000000000',
+  grid: env.VITE_ADSENSE_SLOT_GRID || '0000000000',
 };
 
-// Master switch. Off by default; flip via env (VITE_ADS=1) or hardcode true.
 export const ADS_ENABLED = env.VITE_ADS === '1' || env.VITE_ADS === 'true';
-
-// A publisher ID is only valid once the placeholder "X" template is replaced.
 export const HAS_REAL_PUBLISHER = !PUBLISHER_ID.includes('X');
 
 // ---------------------------------------------------------------------------
-// Lazy-load the AdSense script: do NOT load it eagerly in index.html.
-// We wait until the page is idle, then inject the script once. This avoids
-// blocking first-paint and first-interactive.
+// VERY lazy script loader.
+//
+// We do NOT put the <script> in index.html. Instead we inject it only after:
+//   1. The window has fully loaded (images, fonts, etc.)
+//   2. An additional 3-second cool-down so the UI is buttery smooth first
+//   3. Then we wait for an idle callback before actually injecting
+//
+// This keeps the initial page load completely free of AdSense overhead.
 // ---------------------------------------------------------------------------
 let loaderPromise = null;
+
+function waitForPageReady() {
+  return new Promise((resolve) => {
+    if (document.readyState === 'complete') {
+      // Page already loaded — add a cooldown
+      setTimeout(resolve, 3000);
+    } else {
+      window.addEventListener('load', () => setTimeout(resolve, 3000), { once: true });
+    }
+  });
+}
+
+function whenIdle(fn) {
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(fn, { timeout: 5000 });
+  } else {
+    setTimeout(fn, 100);
+  }
+}
 
 export function loadAdSense() {
   if (!ADS_ENABLED || !HAS_REAL_PUBLISHER) return Promise.resolve(false);
   if (loaderPromise) return loaderPromise;
 
   loaderPromise = new Promise((resolve) => {
-    const existing = document.querySelector('script[src*="adsbygoogle.js"]');
-    if (existing) {
-      // Script tag already in the DOM (e.g. from index.html) — just wait for it
-      if (existing.dataset.loaded === '1') return resolve(true);
-      existing.addEventListener('load', () => resolve(true));
-      existing.addEventListener('error', () => resolve(false));
-      return;
-    }
+    waitForPageReady().then(() => {
+      whenIdle(() => {
+        const existing = document.querySelector('script[src*="adsbygoogle.js"]');
+        if (existing) return resolve(true);
 
-    // Inject the script lazily
-    const s = document.createElement('script');
-    s.async = true;
-    s.crossOrigin = 'anonymous';
-    s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${PUBLISHER_ID}`;
-    s.onload = () => resolve(true);
-    s.onerror = () => resolve(false);
-    document.head.appendChild(s);
+        const s = document.createElement('script');
+        s.async = true;
+        s.crossOrigin = 'anonymous';
+        s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${PUBLISHER_ID}`;
+        s.onload = () => resolve(true);
+        s.onerror = () => resolve(false);
+        document.head.appendChild(s);
+      });
+    });
   });
   return loaderPromise;
 }
 
 // ---------------------------------------------------------------------------
-// Staggered push queue.
-//
-// AdSense's `adsbygoogle.push({})` does heavy synchronous DOM work. If all ad
-// slots push at the same time the main thread freezes for several seconds.
-// This queue spaces pushes apart and runs each during an idle window so the
-// page stays responsive.
+// Staggered push queue — one ad at a time, 3s apart, always during idle.
 // ---------------------------------------------------------------------------
-const STAGGER_MS = 2000; // minimum gap between consecutive pushes
-let pushQueue = [];
+const STAGGER_MS = 3000;
+let queue = [];
 let draining = false;
 
-function idleCallback(fn) {
-  if ('requestIdleCallback' in window) {
-    requestIdleCallback(fn, { timeout: 4000 });
-  } else {
-    setTimeout(fn, 50);
-  }
-}
-
 function drainQueue() {
-  if (draining || pushQueue.length === 0) return;
+  if (draining || queue.length === 0) return;
   draining = true;
-
-  const next = pushQueue.shift();
-  idleCallback(() => {
+  const next = queue.shift();
+  whenIdle(() => {
     next();
     draining = false;
-    if (pushQueue.length > 0) {
-      setTimeout(drainQueue, STAGGER_MS);
-    }
+    if (queue.length > 0) setTimeout(drainQueue, STAGGER_MS);
   });
 }
 
-/**
- * Schedule an ad push that will run during an idle window, staggered from
- * other pushes so the main thread is never blocked by multiple ads at once.
- */
 export function schedulePush(fn) {
-  pushQueue.push(fn);
-  if (!draining) {
-    // First push gets a small initial delay to let the page finish rendering.
-    setTimeout(drainQueue, pushQueue.length === 1 ? 1500 : 0);
-  }
+  queue.push(fn);
+  if (!draining) drainQueue();
 }

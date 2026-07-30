@@ -1,23 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { PUBLISHER_ID, SLOTS, ADS_ENABLED, HAS_REAL_PUBLISHER, loadAdSense, schedulePush } from '../lib/ads';
 
-// A single responsive AdSense display unit.
+// Lazy-loaded AdSense display unit.
 //
-// Ads are loaded LAZILY — the <ins> tag is only injected and pushed when the
-// slot first scrolls into the viewport. This avoids heavy main-thread work on
-// page load and prevents AdSense iframes from freezing scrolling.
-//
-// A transparent overlay sits on top of the ad. It lets scroll/touch events pass
-// through to the scroll container but becomes click-transparent when the user
-// taps, so the ad itself is still clickable.
+// Loading sequence:
+//   1. IntersectionObserver detects the slot is near the viewport
+//   2. loadAdSense() waits for page-ready + cooldown + idle, then loads the script
+//   3. schedulePush() queues the push with 3s stagger between ads
+//   4. The push only fires if the container has a real width (≥ 50px)
 export default function AdSlot({ slot = 'grid', format = 'auto', className = '' }) {
   const boxRef = useRef(null);
   const pushed = useRef(false);
-  const [visible, setVisible] = useState(false); // true once the slot enters the viewport
-  const [live, setLive] = useState(false);        // true once the ad push succeeds
+  const [visible, setVisible] = useState(false);
+  const [live, setLive] = useState(false);
 
-  // Step 1: Use IntersectionObserver to detect when the slot scrolls into view.
-  //         Only then do we start loading the ad.
+  // Detect when slot enters viewport
   useEffect(() => {
     if (!ADS_ENABLED || !HAS_REAL_PUBLISHER) return;
     const el = boxRef.current;
@@ -30,27 +27,31 @@ export default function AdSlot({ slot = 'grid', format = 'auto', className = '' 
           io.disconnect();
         }
       },
-      { rootMargin: '200px' } // start loading a bit before it enters view
+      { rootMargin: '200px' }
     );
     io.observe(el);
     return () => io.disconnect();
   }, []);
 
-  // Step 2: Once visible, load the script and push the ad through the stagger queue.
+  // Load + push once visible
   useEffect(() => {
     if (!visible || pushed.current) return;
     let cancelled = false;
 
     loadAdSense().then((ok) => {
       if (cancelled || !ok || pushed.current) return;
+
       schedulePush(() => {
         if (cancelled || pushed.current) return;
+        // Only push if the container has a real width
+        const box = boxRef.current;
+        if (!box || box.clientWidth < 50) return;
         try {
           (window.adsbygoogle = window.adsbygoogle || []).push({});
           pushed.current = true;
           setLive(true);
         } catch {
-          /* ad blocker or not ready */
+          /* ad blocker */
         }
       });
     });
@@ -72,7 +73,6 @@ export default function AdSlot({ slot = 'grid', format = 'auto', className = '' 
   return (
     <div ref={boxRef} className={`ad-slot ${live ? 'ad-live' : ''} ${className}`}>
       {label}
-      {/* Only inject the <ins> once the slot is near the viewport */}
       {visible && (
         <ins
           className="adsbygoogle"
@@ -84,8 +84,6 @@ export default function AdSlot({ slot = 'grid', format = 'auto', className = '' 
           data-full-width-responsive="false"
         />
       )}
-      {/* Scroll-passthrough overlay: lets wheel/touch events reach the scroll
-          container instead of being swallowed by the AdSense iframe. */}
       <div className="ad-scroll-guard" />
     </div>
   );
