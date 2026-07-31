@@ -8,7 +8,7 @@ import { useChannels, AXES } from './lib/useChannels';
 import { useLibrary, channelKey } from './lib/useLibrary';
 import { useHashState } from './lib/useHashState';
 import VirtualGrid from './components/VirtualGrid';
-import AdSlot from './components/AdSlot';
+
 
 // Code-split the player so hls.js only downloads when the first channel is opened.
 const Player = lazy(() => import('./components/Player'));
@@ -284,7 +284,7 @@ export default function App() {
 
         {status === 'ready' && (
           <>
-            <AdSlot slot="header" format="auto" className="ad-leaderboard" />
+
 
             <section className="hero fade-in">
               <div className="hero-inner">
@@ -300,7 +300,7 @@ export default function App() {
               </div>
             </section>
 
-            <AdSlot slot="grid" format="auto" className="ad-grid" />
+
 
             {filtered.length > 0 ? (
               <VirtualGrid
