@@ -284,7 +284,7 @@ export default function App() {
 
         {status === 'ready' && (
           <>
-            <AdSlot slot="header" format="horizontal" className="ad-leaderboard" />
+            <AdSlot slot="header" format="auto" className="ad-leaderboard" />
 
             <section className="hero fade-in">
               <div className="hero-inner">
@@ -300,7 +300,7 @@ export default function App() {
               </div>
             </section>
 
-            <AdSlot slot="grid" format="horizontal" className="ad-grid" />
+            <AdSlot slot="grid" format="auto" className="ad-grid" />
 
             {filtered.length > 0 ? (
               <VirtualGrid

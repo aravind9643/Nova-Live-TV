@@ -12,5 +12,6 @@ export const SLOTS = {
   grid: env.VITE_ADSENSE_SLOT_GRID || '6124231238',
 };
 
-export const ADS_ENABLED = env.VITE_ADS === '1' || env.VITE_ADS === 'true';
+// Always enable in production (Vercel) or when VITE_ADS is explicitly 1/true.
+export const ADS_ENABLED = env.VITE_ADS === '1' || env.VITE_ADS === 'true' || import.meta.env.PROD;
 export const HAS_REAL_PUBLISHER = !PUBLISHER_ID.includes('X');
