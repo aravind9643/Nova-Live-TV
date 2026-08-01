@@ -100,9 +100,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .appbar {
   display: flex; align-items: center; gap: var(--s3);
   padding: 0 var(--s3);
-  background: rgba(11, 15, 23, 0.86);
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
-  position: relative; z-index: 30;
+  /* AdSense anchor/overlay units are injected into <body> with very high
+     z-indexes and can dock over the header, making the hamburger and search
+     untappable. Sit above them. */
+  position: relative; z-index: 2147483000;
 }
 
 .hamburger {
@@ -153,13 +156,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ========================= Drawer / sidebar ============================== */
 .drawer-backdrop {
-  position: fixed; inset: 0; z-index: 40;
+  /* Above the app bar (which itself sits above AdSense overlays). */
+  position: fixed; inset: 0; z-index: 2147483001;
   background: rgba(4, 7, 12, 0.66);
   animation: fadeIn 0.18s ease-out;
 }
 
 .sidebar {
-  position: fixed; inset: 0 auto 0 0; z-index: 50;
+  position: fixed; inset: 0 auto 0 0; z-index: 2147483002;
   width: min(300px, 86vw);
   display: flex; flex-direction: column;
   padding: var(--s3) var(--s3) 0;
@@ -421,6 +425,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   display: flex; flex-direction: column;
   height: 100dvh; background: var(--bg);
   padding-top: env(safe-area-inset-top, 0px);
+  /* Keep the video and its controls above any AdSense anchor overlay. */
+  position: relative; z-index: 2147483000;
 }
 
 .watch-bar {
@@ -637,6 +643,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
   .hamburger:hover, .drawer-close:hover, .search-clear:hover { background: var(--surface-2); }
   .group-item:hover { color: var(--text); background: var(--surface-2); }
+  .facet-item:hover { color: var(--text); background: var(--surface-2); }
+  .facet-item.on:hover { background: var(--accent-soft); }
+  .facet-item:hover .facet-check { border-color: var(--accent-line); }
   .axis-tab:hover:not(.active) { color: var(--text); }
   .btn-ghost:hover { background: var(--surface-2); }
   .watch-back:hover, .watch-fav:hover { background: var(--surface-2); }
@@ -718,34 +727,76 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   padding: 0 var(--s2) 0 var(--s1);
   scroll-padding-block: var(--s2);
 }
-.facet { margin-bottom: var(--s4); }
-.facet-title {
-  margin: 0 0 var(--s2); padding: 0 var(--s2);
-  font-size: 10px; font-weight: 700; letter-spacing: 1.4px;
-  text-transform: uppercase; color: var(--text-faint);
-}
-.facet-list { display: flex; flex-direction: column; gap: 1px; }
-.facet-item {
+.facet { margin-bottom: var(--s3); }
+.facet:last-child { margin-bottom: var(--s2); }
+
+/* Sticky, tappable section header — stays visible while its list scrolls. */
+.facet-head {
+  position: sticky; top: 0; z-index: 2;
   display: flex; align-items: center; gap: var(--s2);
-  min-height: 38px; padding: 0 var(--s2); border-radius: var(--r-sm);
+  width: 100%; min-height: 34px; padding: 0 var(--s2);
+  margin-bottom: var(--s1);
+  background: var(--surface-1);
+  border-radius: var(--r-sm);
+  text-align: left;
+}
+.facet-head:hover { background: var(--surface-2); }
+.facet-caret {
+  flex: 0 0 auto; color: var(--text-faint);
+  transition: transform 0.18s ease;
+}
+.facet.is-collapsed .facet-caret { transform: rotate(-90deg); }
+.facet-title {
+  flex: 1; margin: 0;
+  font-size: 10px; font-weight: 700; letter-spacing: 1.4px;
+  text-transform: uppercase; color: var(--text-dim);
+}
+/* How many values are active in this section. */
+.facet-badge {
+  flex: 0 0 auto; min-width: 18px; padding: 1px 6px;
+  border-radius: var(--r-full); text-align: center;
+  background: var(--accent); color: var(--accent-ink);
+  font-size: 10px; font-weight: 700;
+}
+.facet-total {
+  flex: 0 0 auto; font-size: 10px; color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.facet-list { display: flex; flex-direction: column; gap: 2px; }
+.facet-item {
+  position: relative;
+  display: flex; align-items: center; gap: var(--s3);
+  min-height: 40px; padding: 0 var(--s2); border-radius: var(--r-md);
   font-size: var(--fs-sm); color: var(--text-dim); text-align: left; width: 100%;
+  transition: background 0.14s, color 0.14s;
 }
 .facet-check {
   display: grid; place-items: center; flex: 0 0 auto;
-  width: 16px; height: 16px; border-radius: 5px;
+  width: 18px; height: 18px; border-radius: 6px;
   border: 1.5px solid var(--border-strong); color: var(--accent-ink);
+  transition: background 0.14s, border-color 0.14s;
 }
-.facet-item.on { color: var(--text); }
+.facet-item.on {
+  color: var(--text); font-weight: 600;
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
 .facet-item.on .facet-check { background: var(--accent); border-color: var(--accent); }
+.facet-item.on em { color: var(--accent); }
 .facet-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .facet-item em {
-  font-style: normal; font-size: 10.5px; color: var(--text-faint); flex: 0 0 auto;
+  font-style: normal; font-size: 10.5px; color: var(--text-faint);
+  flex: 0 0 auto; font-variant-numeric: tabular-nums;
 }
 .facet-item:active { background: var(--surface-2); }
+
 .facet-more {
   margin-top: var(--s1); padding: var(--s2); width: 100%;
   font-size: var(--fs-xs); font-weight: 600; color: var(--accent); text-align: left;
+  border-radius: var(--r-sm);
 }
+.facet-more:hover { background: var(--accent-soft); }
 
 /* ============================ Filter chips =============================== */
 .chipbar { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s4); }

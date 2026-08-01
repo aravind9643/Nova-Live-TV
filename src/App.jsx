@@ -1,7 +1,7 @@
 import { useMemo, useState, useDeferredValue, useCallback, useEffect, useRef } from 'react';
 import {
   Search, Tv, WifiOff, Star, History, Menu, X, Globe, SlidersHorizontal,
-  Clock, RotateCcw, Check,
+  Clock, RotateCcw, Check, ChevronDown,
 } from 'lucide-react';
 import { useCatalogue, FACETS } from './lib/useCatalogue';
 import { useLibrary, channelKey } from './lib/useLibrary';
@@ -28,6 +28,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [facetFilter, setFacetFilter] = useState('');
   const [expanded, setExpanded] = useState({});
+  const [collapsedFacets, setCollapsedFacets] = useState({});
   const [playing, setPlaying] = useState(null);
   const [recentSearches, setRecentSearches] = useState(loadRecentSearches);
   const [searchFocused, setSearchFocused] = useState(false);
@@ -107,6 +108,30 @@ export default function App() {
     return () => mo.disconnect();
   }, []);
 
+  // Auto Ads can still dock a page-level anchor unit to the TOP of the viewport,
+  // where it covers the header (hamburger + search) and makes them untappable.
+  // We ask for bottom overlays in index.html, but Google doesn't always honour
+  // it — so move any top-docked anchor to the bottom ourselves.
+  useEffect(() => {
+    const relocate = () => {
+      for (const el of document.querySelectorAll('ins.adsbygoogle-noablate, .adsbygoogle-noablate')) {
+        const cs = getComputedStyle(el);
+        if (cs.position !== 'fixed') continue;
+        // top-anchored if it's pinned near the top of the viewport
+        const top = parseFloat(cs.top);
+        if (!Number.isNaN(top) && top < 80) {
+          el.style.setProperty('top', 'auto', 'important');
+          el.style.setProperty('bottom', '0', 'important');
+        }
+      }
+    };
+    relocate();
+    const mo = new MutationObserver(relocate);
+    mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+    const iv = setInterval(relocate, 2000);
+    return () => { mo.disconnect(); clearInterval(iv); };
+  }, []);
+
   // Warm the player chunk (~530kB of hls.js) once the grid is up, so tapping a
   // channel opens a working player instead of a controls-less placeholder.
   useEffect(() => {
@@ -123,17 +148,44 @@ export default function App() {
   }, [menuOpen]);
 
   // ---- actions -------------------------------------------------------------
+  // Tracks whether opening the player pushed a history entry we still owe a pop.
+  const pushedEntry = useRef(false);
+
   const play = useCallback((c) => {
-    setPlaying(c);
+    setPlaying((prev) => {
+      // Opening the player from the grid adds ONE history entry, so Back returns
+      // to the channel list. Zapping between channels replaces it, so Back
+      // doesn't have to unwind every channel you flicked through.
+      const shouldPush = !prev;
+      if (shouldPush) pushedEntry.current = true;
+      update({ play: channelKey(c) }, { push: shouldPush });
+      return c;
+    });
     pushRecent(c);                    // the watch screen's rail reads this
-    update({ play: channelKey(c) });
     if (query.trim()) setRecentSearches(pushRecentSearch(query));
   }, [update, query, pushRecent]);
 
   const closePlayer = useCallback(() => {
-    setPlaying(null);
-    update({ play: null });
+    // Consume the entry play() pushed so Back/Forward stay consistent. popstate
+    // then drops `play` from the URL and the effect below unmounts the player.
+    if (pushedEntry.current) {
+      pushedEntry.current = false;
+      window.history.back();
+    } else {
+      // Arrived via a deep link — no entry of ours to pop.
+      setPlaying(null);
+      update({ play: null });
+    }
   }, [update]);
+
+  // Keep the player in sync with the URL — this is what makes the browser /
+  // Android Back button close the player instead of leaving the app.
+  useEffect(() => {
+    if (!playParam && playing) {
+      pushedEntry.current = false; // the entry was consumed by the Back press
+      setPlaying(null);
+    }
+  }, [playParam, playing]);
 
   // Zap, skipping channels already known to be dead (unless everything is).
   const zap = useCallback((dir) => {
@@ -277,38 +329,62 @@ export default function App() {
           {Object.entries(FACETS).map(([facet, { plural }]) => {
             const q = facetFilter.trim().toLowerCase();
             const all = facets[facet] || [];
+            const active = selected[facet] || [];
             const matching = q ? all.filter((v) => v.name.toLowerCase().includes(q)) : all;
             if (!matching.length) return null;
-            const isOpen = expanded[facet] || q;
-            const shown = isOpen ? matching : matching.slice(0, FACET_PREVIEW);
+
+            // Selected values float to the top so they're never lost down a
+            // 188-item list once the section is collapsed to a preview.
+            const ordered = active.length
+              ? [...matching].sort((a, b) => active.includes(b.name) - active.includes(a.name))
+              : matching;
+
+            const collapsed = collapsedFacets[facet];
+            const showAll = expanded[facet] || !!q;
+            const shown = showAll ? ordered : ordered.slice(0, FACET_PREVIEW);
 
             return (
-              <section key={facet} className="facet">
-                <h3 className="facet-title">{plural}</h3>
-                <div className="facet-list">
-                  {shown.map((v) => {
-                    const on = selected[facet]?.includes(v.name);
-                    return (
+              <section key={facet} className={`facet ${collapsed ? 'is-collapsed' : ''}`}>
+                <button
+                  className="facet-head"
+                  onClick={() => setCollapsedFacets((p) => ({ ...p, [facet]: !p[facet] }))}
+                  aria-expanded={!collapsed}
+                >
+                  <ChevronDown size={14} className="facet-caret" />
+                  <span className="facet-title">{plural}</span>
+                  {active.length > 0 && <span className="facet-badge">{active.length}</span>}
+                  <span className="facet-total">{matching.length}</span>
+                </button>
+
+                {!collapsed && (
+                  <>
+                    <div className="facet-list">
+                      {shown.map((v) => {
+                        const on = active.includes(v.name);
+                        return (
+                          <button
+                            key={v.name}
+                            className={`facet-item ${on ? 'on' : ''}`}
+                            onClick={() => toggleFacet(facet, v.name)}
+                            aria-pressed={on}
+                            title={`${v.name} · ${v.count.toLocaleString()} channels`}
+                          >
+                            <span className="facet-check">{on && <Check size={12} strokeWidth={3} />}</span>
+                            <span className="facet-name">{v.name}</span>
+                            <em>{v.count.toLocaleString()}</em>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {!q && ordered.length > FACET_PREVIEW && (
                       <button
-                        key={v.name}
-                        className={`facet-item ${on ? 'on' : ''}`}
-                        onClick={() => toggleFacet(facet, v.name)}
-                        aria-pressed={on}
+                        className="facet-more"
+                        onClick={() => setExpanded((p) => ({ ...p, [facet]: !p[facet] }))}
                       >
-                        <span className="facet-check">{on && <Check size={12} strokeWidth={3} />}</span>
-                        <span className="facet-name">{v.name}</span>
-                        <em>{v.count}</em>
+                        {showAll ? 'Show less' : `Show all ${ordered.length.toLocaleString()}`}
                       </button>
-                    );
-                  })}
-                </div>
-                {!q && matching.length > FACET_PREVIEW && (
-                  <button
-                    className="facet-more"
-                    onClick={() => setExpanded((p) => ({ ...p, [facet]: !p[facet] }))}
-                  >
-                    {isOpen ? 'Show less' : `Show all ${matching.length}`}
-                  </button>
+                    )}
+                  </>
                 )}
               </section>
             );

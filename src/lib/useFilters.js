@@ -46,9 +46,15 @@ export function useFilters() {
   const [state, setState] = useState(parse);
 
   useEffect(() => {
-    const onHash = () => setState(parse());
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
+    // `popstate` covers Back/Forward (including the Android hardware button);
+    // `hashchange` covers a manually edited hash. Both just re-read the URL.
+    const sync = () => setState(parse());
+    window.addEventListener('popstate', sync);
+    window.addEventListener('hashchange', sync);
+    return () => {
+      window.removeEventListener('popstate', sync);
+      window.removeEventListener('hashchange', sync);
+    };
   }, []);
 
   const commit = useCallback((next) => {
@@ -58,12 +64,16 @@ export function useFilters() {
     setState(next);
   }, []);
 
-  const update = useCallback((patch) => {
+  // `push: true` creates a real history entry so the browser/Android Back
+  // button can return to the previous state (used when opening the player)
+  // instead of leaving the app entirely.
+  const update = useCallback((patch, { push = false } = {}) => {
     setState((prev) => {
       const next = { ...prev, ...patch };
       const hash = serialize(next);
       const url = `${window.location.pathname}${window.location.search}${hash}`;
-      window.history.replaceState(null, '', url || window.location.pathname);
+      const method = push ? 'pushState' : 'replaceState';
+      window.history[method](null, '', url || window.location.pathname);
       return next;
     });
   }, []);
