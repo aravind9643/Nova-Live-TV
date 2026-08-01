@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="gm" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+  <!-- Full bleed: maskable icons need art inside the safe zone (centre 80%). -->
+  <rect width="192" height="192" fill="#0b0f17"/>
+  <g transform="translate(53 58) scale(0.72)">
+    <path d="M28 18 L58 -4 M88 18 L58 -4" stroke="url(#gm)" stroke-width="9" stroke-linecap="round" fill="none"/>
+    <rect x="4" y="18" width="108" height="76" rx="14" fill="none" stroke="url(#gm)" stroke-width="10"/>
+    <circle cx="58" cy="56" r="15" fill="url(#gm)"/>
+  </g>
+</svg>

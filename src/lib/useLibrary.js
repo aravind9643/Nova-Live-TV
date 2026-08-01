@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { tap } from './haptics';
 
 // Persists favorites + recently-watched to localStorage. Channels come and go on
 // the iptv-org lists, so we store the full channel object (not just an id) — that
@@ -41,6 +42,7 @@ export function useLibrary() {
   );
 
   const toggleFavorite = useCallback((c) => {
+    tap();
     setFavorites((prev) => {
       const k = channelKey(c);
       return prev.some((f) => channelKey(f) === k)
