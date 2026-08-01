@@ -405,7 +405,9 @@ export default function App() {
           })}
         </div>
 
-        <AdSlot slot="sidebar" format="auto" className="ad-sidebar" />
+        {/* No ad unit here on purpose: the sidebar is the app's primary
+            navigation, and an unfilled/tall unit squeezes the category list
+            down to a few rows. Ads live in the content column instead. */}
         <div className="sidebar-foot">Streams by iptv-org · free &amp; open</div>
       </aside>
 

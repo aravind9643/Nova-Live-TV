@@ -388,7 +388,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ad-grid { margin-bottom: var(--s4); }
 /* Sidebar unit is desktop-only — in the mobile drawer it would just be clutter.
    It must also never squeeze out the category list, so keep it short and fixed. */
-.ad-sidebar { display: none; flex: 0 0 auto; margin: var(--s3) 0; }
 
 /* ============================= Skeletons ================================= */
 .skeleton-grid { margin: 0; }
@@ -602,9 +601,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .main { padding: var(--s6) var(--s6) var(--s8); }
   .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s4); }
   .hero { padding: var(--s7); border-radius: var(--r-xl); margin-bottom: var(--s5); }
-
-  /* Sidebar ad only makes sense once the sidebar is persistent. */
-  .ad-sidebar { display: block; }
 }
 
 /* ==========================================================================
