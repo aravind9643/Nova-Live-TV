@@ -89,22 +89,36 @@ export default function App() {
 
   // AdSense page-level ads stamp `height: auto !important` onto #root/.app,
   // which breaks the viewport height chain: .main then grows to the virtual
-  // list's full spacer height (100k+ px), the virtualiser thinks the whole list
-  // is on screen, renders every card and the tab locks up. Strip it back out.
+  // list's full spacer height (100k+ px), so it can't scroll and the virtualiser
+  // renders every card.
+  //
+  // The targets must be re-resolved on every pass: switching to the watch screen
+  // unmounts `.app` entirely, so a node captured at mount time goes stale and the
+  // NEW `.app` ends up unguarded — which is why scrolling broke after Back.
   useEffect(() => {
-    const targets = [document.getElementById('root'), document.querySelector('.app')].filter(Boolean);
-    if (!targets.length) return;
-
     const strip = () => {
+      const targets = [
+        document.getElementById('root'),
+        document.querySelector('.app'),
+        document.querySelector('.watch'),
+      ];
       for (const el of targets) {
+        if (!el) continue;
         if (el.style.getPropertyValue('height')) el.style.removeProperty('height');
+        if (el.style.getPropertyValue('min-height')) el.style.removeProperty('min-height');
         if (el.style.getPropertyValue('max-height')) el.style.removeProperty('max-height');
       }
     };
     strip();
 
+    // Observe the whole document so newly-mounted screens are covered too.
     const mo = new MutationObserver(strip);
-    for (const el of targets) mo.observe(el, { attributes: true, attributeFilter: ['style'] });
+    mo.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style'],
+      subtree: true,
+      childList: true,
+    });
     return () => mo.disconnect();
   }, []);
 

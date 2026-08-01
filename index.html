@@ -20,16 +20,14 @@
     rel="stylesheet" />
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9316330718026325"
     crossorigin="anonymous"></script>
-  <script>
-    // Auto Ads places a page-level anchor unit. Left to itself it docks to the
-    // TOP on mobile, covering our header (hamburger + search). Pin it to the
-    // bottom so app chrome stays reachable.
-    (adsbygoogle = window.adsbygoogle || []).push({
-      google_ad_client: 'ca-pub-9316330718026325',
-      enable_page_level_ads: true,
-      overlays: { bottom: true },
-    });
-  </script>
+  <!--
+    NOTE: the adsbygoogle.js tag above already carries ?client=…, which enables
+    Auto Ads on its own. Pushing `enable_page_level_ads` here as well throws
+    "Only one 'enable_page_level_ads' allowed per page" and aborts the config,
+    so it is deliberately omitted. Anchor placement is controlled in the AdSense
+    dashboard (Ads → By site → Auto ads), with a JS fallback in App.jsx that
+    relocates any top-docked anchor away from the header.
+  -->
 </head>
 
 <body>
