@@ -414,6 +414,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-style: solid;
 }
 
+/* Player screen ad — sits right below the video player stage in watch view. */
+.ad-player {
+  margin-bottom: var(--s5);
+  border-radius: var(--r-md);
+}
+
 /* Anchor ad — sticky banner at the bottom of the viewport. */
 .anchor-ad {
   position: fixed; bottom: 0; left: 0; right: 0;

@@ -14,6 +14,7 @@ export const SLOTS = {
   infeed:    env.VITE_ADSENSE_SLOT_INFEED   || '6124231238',
   anchor:    env.VITE_ADSENSE_SLOT_ANCHOR   || '6471680207',
   multiplex: env.VITE_ADSENSE_SLOT_MULTIPLEX|| '9594491395',
+  player:    env.VITE_ADSENSE_SLOT_PLAYER   || '6124231238',
 };
 
 // How many channel cards between each in-feed ad row.

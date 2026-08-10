@@ -4,7 +4,7 @@ import { PUBLISHER_ID, SLOTS, ADS_ENABLED, HAS_REAL_PUBLISHER } from '../lib/ads
 // Fixed heights per placement. AdSense stamps `height: auto !important` on both
 // the slot and the <ins>, so CSS alone cannot contain an unfilled unit — we set
 // the height inline (also with !important) and re-assert it if Google overwrites.
-const SIZE = { header: 100, grid: 250, sidebar: 120 };
+const SIZE = { header: 100, grid: 250, sidebar: 120, player: 120 };
 
 export default function AdSlot({ slot = 'grid', format = 'auto', className = '' }) {
   const boxRef = useRef(null);

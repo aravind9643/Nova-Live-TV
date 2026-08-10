@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { ArrowLeft, Star, Radio, History, Play, Loader2 } from 'lucide-react';
 import { channelKey } from '../lib/useLibrary';
+import AdSlot from './AdSlot';
 
 const Player = lazy(() => import('./Player'));
 
@@ -54,6 +55,8 @@ export default function WatchScreen({
       </Suspense>
 
       <div className="watch-body">
+        <AdSlot slot="player" format="auto" className="ad-player" />
+
         {rail.length > 0 ? (
           <section className="rail-section">
             <h2 className="rail-title"><History size={15} /> Recently watched</h2>
