@@ -386,8 +386,57 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ad-live { border-style: solid; padding-top: var(--s5); }
 /* In-feed ad sits inside the grid flow on mobile. */
 .ad-grid { margin-bottom: var(--s4); }
-/* Sidebar unit is desktop-only — in the mobile drawer it would just be clutter.
-   It must also never squeeze out the category list, so keep it short and fixed. */
+
+/* Sidebar ad — desktop-only, fixed short height so filter list isn't squeezed. */
+.ad-sidebar {
+  margin: var(--s3) var(--s2) var(--s2);
+  flex: 0 0 auto;
+  max-height: 140px;
+  border-radius: var(--r-sm);
+}
+@media (max-width: 860px) { .ad-sidebar { display: none; } }
+
+/* In-feed ad — full-width horizontal stripe blending between grid rows. */
+.ad-infeed {
+  margin: var(--s2) 0;
+  padding: var(--s5) var(--s3) var(--s2);
+  border-radius: var(--r-sm);
+  border-style: solid;
+  background: linear-gradient(135deg, var(--surface-1), var(--surface-2));
+}
+
+/* Multiplex ad — sponsored content grid at the bottom of the page. */
+.ad-multiplex {
+  margin-top: var(--s5);
+  padding: var(--s5) var(--s3) var(--s3);
+  min-height: 200px;
+  border-radius: var(--r-md);
+  border-style: solid;
+}
+
+/* Anchor ad — sticky banner at the bottom of the viewport. */
+.anchor-ad {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  z-index: 40;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  padding: 4px 40px 4px 8px;
+  animation: slideUp 0.4s ease-out;
+}
+.anchor-ad-close {
+  position: absolute; top: 4px; right: 8px; z-index: 2;
+  display: grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-dim); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.anchor-ad-close:hover { background: var(--surface-3); color: var(--text); }
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
 
 /* ============================= Skeletons ================================= */
 .skeleton-grid { margin: 0; }

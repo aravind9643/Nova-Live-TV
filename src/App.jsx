@@ -11,6 +11,8 @@ import { useScrollMemory } from './lib/useScrollMemory';
 import { searchChannels, loadRecentSearches, pushRecentSearch } from './lib/search';
 import VirtualGrid from './components/VirtualGrid';
 import AdSlot from './components/AdSlot';
+import AnchorAd from './components/AnchorAd';
+import MultiplexAd from './components/MultiplexAd';
 import WatchScreen from './components/WatchScreen';
 
 // How many values to show per facet before "show all".
@@ -122,27 +124,52 @@ export default function App() {
     return () => mo.disconnect();
   }, []);
 
-  // Auto Ads can still dock a page-level anchor unit to the TOP of the viewport,
-  // where it covers the header (hamburger + search) and makes them untappable.
-  // We ask for bottom overlays in index.html, but Google doesn't always honour
-  // it — so move any top-docked anchor to the bottom ourselves.
+  // Auto Ads inject floating units we never asked for — side rails, vignettes
+  // and top-docked anchors — which land on top of the channel grid and the
+  // header. Our own <AdSlot>s live inside `.ad-slot` in the normal document
+  // flow, so anything floating OUTSIDE one of those is fair game:
+  //   • a top-docked anchor gets moved to the bottom (still monetises)
+  //   • a free-floating overlay over the content is removed outright
   useEffect(() => {
-    const relocate = () => {
-      for (const el of document.querySelectorAll('ins.adsbygoogle-noablate, .adsbygoogle-noablate')) {
-        const cs = getComputedStyle(el);
-        if (cs.position !== 'fixed') continue;
-        // top-anchored if it's pinned near the top of the viewport
-        const top = parseFloat(cs.top);
-        if (!Number.isNaN(top) && top < 80) {
-          el.style.setProperty('top', 'auto', 'important');
-          el.style.setProperty('bottom', '0', 'important');
+    const tame = () => {
+      const nodes = document.querySelectorAll(
+        'ins.adsbygoogle, iframe[id^="aswift"], iframe[name^="google_ads"], [id^="google_ads_iframe"]'
+      );
+
+      for (const el of nodes) {
+        // Never touch the units we placed ourselves.
+        if (el.closest('.ad-slot')) continue;
+
+        const host = el.closest('ins, div') || el;
+        const cs = getComputedStyle(host);
+        if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
+
+        const r = host.getBoundingClientRect();
+        if (r.width < 40 || r.height < 40) continue;
+
+        const isAnchor = host.classList.contains('adsbygoogle-noablate');
+        const nearTop = r.top < 90;
+        const nearBottom = r.bottom > window.innerHeight - 90;
+
+        if (isAnchor && nearBottom && !nearTop) continue; // bottom anchor is fine
+
+        if (isAnchor && nearTop) {
+          host.style.setProperty('top', 'auto', 'important');
+          host.style.setProperty('bottom', '0', 'important');
+          continue;
         }
+
+        // A floating panel sitting over the content — hide it.
+        host.style.setProperty('display', 'none', 'important');
       }
     };
-    relocate();
-    const mo = new MutationObserver(relocate);
-    mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
-    const iv = setInterval(relocate, 2000);
+
+    tame();
+    const mo = new MutationObserver(tame);
+    mo.observe(document.documentElement, {
+      childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'],
+    });
+    const iv = setInterval(tame, 1500);
     return () => { mo.disconnect(); clearInterval(iv); };
   }, []);
 
@@ -405,9 +432,8 @@ export default function App() {
           })}
         </div>
 
-        {/* No ad unit here on purpose: the sidebar is the app's primary
-            navigation, and an unfilled/tall unit squeezes the category list
-            down to a few rows. Ads live in the content column instead. */}
+        {/* Sidebar ad — desktop only, short unit so it doesn't squeeze the filter list */}
+        <AdSlot slot="sidebar" format="auto" className="ad-sidebar" />
         <div className="sidebar-foot">Streams by iptv-org · free &amp; open</div>
       </aside>
 
@@ -493,9 +519,15 @@ export default function App() {
                 )}
               </div>
             )}
+
+            {/* Multiplex ad — sponsored content grid at the bottom */}
+            <MultiplexAd />
           </>
         )}
       </main>
+
+      {/* Sticky anchor ad at the bottom of the viewport */}
+      <AnchorAd />
     </div>
   );
 }
