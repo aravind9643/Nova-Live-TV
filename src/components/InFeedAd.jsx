@@ -43,11 +43,11 @@ export default function InFeedAd({ index }) {
       <ins
         ref={insRef}
         className="adsbygoogle"
-        style={{ display: 'block', width: '100%', height: '100px' }}
+        style={{ display: 'block', width: '100%', height: '260px' }}
         data-ad-client={PUBLISHER_ID}
         data-ad-slot={SLOTS.infeed}
-        data-ad-format="fluid"
-        data-ad-layout-key="-6t+ed+2i-1n-4w"
+        data-ad-format="auto"
+        data-full-width-responsive="true"
       />
     </div>
   );

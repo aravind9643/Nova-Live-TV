@@ -387,19 +387,20 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* In-feed ad sits inside the grid flow on mobile. */
 .ad-grid { margin-bottom: var(--s4); }
 
-/* Sidebar ad — desktop-only, fixed short height so filter list isn't squeezed. */
+/* Sidebar ad — desktop-only display unit below filter list. */
 .ad-sidebar {
   margin: var(--s3) var(--s2) var(--s2);
   flex: 0 0 auto;
-  max-height: 140px;
+  min-height: 250px;
   border-radius: var(--r-sm);
 }
 @media (max-width: 860px) { .ad-sidebar { display: none; } }
 
-/* In-feed ad — full-width horizontal stripe blending between grid rows. */
+/* In-feed ad — full-width display banner blending between grid rows. */
 .ad-infeed {
   margin: var(--s2) 0;
   padding: var(--s5) var(--s3) var(--s2);
+  min-height: 260px;
   border-radius: var(--r-sm);
   border-style: solid;
   background: linear-gradient(135deg, var(--surface-1), var(--surface-2));
@@ -409,7 +410,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ad-multiplex {
   margin-top: var(--s5);
   padding: var(--s5) var(--s3) var(--s3);
-  min-height: 200px;
+  min-height: 250px;
   border-radius: var(--r-md);
   border-style: solid;
 }
@@ -417,6 +418,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* Player screen ad — sits right below the video player stage in watch view. */
 .ad-player {
   margin-bottom: var(--s5);
+  min-height: 250px;
   border-radius: var(--r-md);
 }
 

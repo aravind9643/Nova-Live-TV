@@ -16,7 +16,7 @@ import { ADS_ENABLED, IN_FEED_INTERVAL } from '../lib/ads';
 const OVERSCAN = 4;      // extra rows rendered above/below the viewport
 const EST_ROW = 180;     // fallback row height until a real card is measured
 const MAX_RENDERED = 200; // absolute cap on simultaneously-mounted cards
-const AD_ROW_HEIGHT = 120; // estimated height of an in-feed ad row
+const AD_ROW_HEIGHT = 280; // estimated height of an in-feed ad row
 
 export default function VirtualGrid({ items, scrollParent, onPlay, isFavorite, onToggleFavorite, statusOf }) {
   const spacerRef = useRef(null);
