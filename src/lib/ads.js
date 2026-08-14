@@ -8,9 +8,7 @@ export const PUBLISHER_ID = env.VITE_ADSENSE_CLIENT || 'ca-pub-9316330718026325'
 
 export const SLOTS = {
   header:    env.VITE_ADSENSE_SLOT_HEADER   || '6471680207',
-  header2:   env.VITE_ADSENSE_SLOT_HEADER2  || '6471680207',
   sidebar:   env.VITE_ADSENSE_SLOT_SIDEBAR  || '9594491395',
-  sidebar2:  env.VITE_ADSENSE_SLOT_SIDEBAR2 || '9594491395',
   grid:      env.VITE_ADSENSE_SLOT_GRID     || '6124231238',
   grid2:     env.VITE_ADSENSE_SLOT_GRID2    || '6124231238',
   anchor:    env.VITE_ADSENSE_SLOT_ANCHOR   || '6471680207',

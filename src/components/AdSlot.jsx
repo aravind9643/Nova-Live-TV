@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { PUBLISHER_ID, SLOTS, ADS_ENABLED, HAS_REAL_PUBLISHER } from '../lib/ads';
 
-// Fixed heights per placement. AdSense stamps `height: auto !important` on both
-// the slot and the <ins>, so CSS alone cannot contain an unfilled unit — we set
-// the height inline (also with !important) and re-assert it if Google overwrites.
+// Target height reservations per placement to avoid cumulative layout shift (CLS).
+// When an ad fills, it occupies this footprint. If unfilled, it smoothly collapses.
 const SIZE = {
-  header: 120, header2: 90,
-  grid: 280, grid2: 280,
-  sidebar: 250, sidebar2: 250,
-  player: 250, player2: 250,
+  header: 100,
+  grid: 250,
+  grid2: 250,
+  sidebar: 250,
+  player: 250,
+  player2: 250,
 };
 
 export default function AdSlot({ slot = 'grid', format = 'auto', className = '' }) {
@@ -31,8 +32,7 @@ export default function AdSlot({ slot = 'grid', format = 'auto', className = '' 
   }, []);
 
   // Watch the unit: AdSense marks it data-ad-status="unfilled" when there's no
-  // ad to show (localhost, unapproved site, no inventory). Collapse it then, and
-  // keep re-applying our height whenever Google rewrites the style attribute.
+  // ad to show (localhost, unapproved site, no inventory). Collapse it then.
   useEffect(() => {
     const ins = insRef.current;
     if (!ins || !ADS_ENABLED || !HAS_REAL_PUBLISHER) return;
@@ -59,7 +59,7 @@ export default function AdSlot({ slot = 'grid', format = 'auto', className = '' 
     mo.observe(ins, { attributes: true, attributeFilter: ['style', 'data-ad-status'] });
     if (boxRef.current) mo.observe(boxRef.current, { attributes: true, attributeFilter: ['style'] });
 
-    // Give Google a few seconds; if it never fills, collapse.
+    // Give Google a few seconds; if it never fills, collapse cleanly.
     const t = setTimeout(() => {
       if (ins.getAttribute('data-ad-status') !== 'filled') setState((s) => (s === 'live' ? 'unfilled' : s));
     }, 6000);
@@ -79,7 +79,7 @@ export default function AdSlot({ slot = 'grid', format = 'auto', className = '' 
     );
   }
 
-  // No ad returned — render nothing rather than a large empty box.
+  // No ad returned — render nothing rather than an empty box.
   if (state === 'unfilled') return null;
 
   return (
@@ -90,7 +90,7 @@ export default function AdSlot({ slot = 'grid', format = 'auto', className = '' 
         className="adsbygoogle"
         style={{ display: 'block', width: '100%', height: `${height}px` }}
         data-ad-client={PUBLISHER_ID}
-        data-ad-slot={SLOTS[slot]}
+        data-ad-slot={SLOTS[slot] || SLOTS.grid}
         data-ad-format={format}
         data-full-width-responsive="true"
       />

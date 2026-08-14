@@ -330,9 +330,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Header leaderboard — thin banner below the app bar */}
-      <AdSlot slot="header2" format="horizontal" className="ad-leaderboard" />
-
       {/* ---------------- Drawer / sidebar ---------------- */}
       {menuOpen && <div className="drawer-backdrop" onClick={() => setMenuOpen(false)} />}
 
@@ -434,9 +431,6 @@ export default function App() {
             );
           })}
         </div>
-
-        {/* Mid-sidebar ad — between filters (desktop only) */}
-        <AdSlot slot="sidebar2" format="auto" className="ad-sidebar ad-sidebar-mid" />
 
         {/* Sidebar ad — desktop only */}
         <AdSlot slot="sidebar" format="auto" className="ad-sidebar" />

@@ -251,7 +251,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .main {
   overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding: var(--s4) var(--s4) var(--s7);
+  padding: var(--s4) var(--s4) 90px;
   /* Grid items default to min-height:auto, so this would grow to fit the
      virtual grid's spacer (hundreds of thousands of px) instead of scrolling.
      That inflates clientHeight and makes the virtualiser render every row. */
@@ -364,39 +364,29 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* ============================== Ad slots ================================= */
 .ad-slot {
   position: relative; width: 100%;
-  border: 1px dashed var(--border); border-radius: var(--r-md);
+  border: 1px solid var(--border); border-radius: var(--r-md);
   background: var(--surface-1);
-  padding: var(--s5) var(--s3) var(--s3);
-  margin-bottom: var(--s4);
+  padding: 22px var(--s3) var(--s3);
+  margin-bottom: var(--s5);
   overflow: hidden;
-  /* Height is owned by AdSlot.jsx (inline, !important) because AdSense
-     overwrites any stylesheet rule with `height: auto !important`. */
+  box-shadow: var(--shadow-1);
   contain: layout;
 }
 .ad-label {
-  position: absolute; top: 6px; left: 10px;
-  font-size: 9px; letter-spacing: 1.2px; text-transform: uppercase;
+  position: absolute; top: 5px; left: 10px;
+  font-size: 8.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
   color: var(--text-faint);
+  pointer-events: none;
 }
 .ad-placeholder {
   display: grid; place-items: center; min-height: 88px;
   color: var(--text-faint); font-size: var(--fs-sm);
 }
 .ad-placeholder-hint { letter-spacing: 0.3px; }
-.ad-live { border-style: solid; padding-top: var(--s5); }
-/* In-feed ad sits inside the grid flow on mobile. */
-.ad-grid { margin-bottom: var(--s4); }
+.ad-live { border-style: solid; border-color: var(--border); padding-top: 22px; }
 
-/* Header leaderboard — thin horizontal banner below the app bar. */
-.ad-leaderboard {
-  margin: 0;
-  border-radius: 0;
-  border-left: 0; border-right: 0; border-top: 0;
-  padding: var(--s5) var(--s3) var(--s2);
-  max-height: 100px;
-}
-/* Hide header leaderboard on mobile — the anchor ad covers small screens. */
-@media (max-width: 640px) { .ad-leaderboard { display: none; } }
+/* Top of grid ad */
+.ad-grid { margin-bottom: var(--s5); }
 
 /* Sidebar ad — desktop-only, short so filter list isn't squeezed. */
 .ad-sidebar {
@@ -409,14 +399,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* Second grid ad — between the channel list and multiplex. */
 .ad-grid2 {
-  margin-top: var(--s4);
-  margin-bottom: var(--s4);
+  margin-top: var(--s5);
+  margin-bottom: var(--s5);
 }
 
 /* Multiplex ad — sponsored content grid at the bottom of the page. */
 .ad-multiplex {
   margin-top: var(--s5);
-  padding: var(--s5) var(--s3) var(--s3);
+  padding: 22px var(--s3) var(--s3);
   min-height: 250px;
   border-radius: var(--r-md);
   border-style: solid;
@@ -434,15 +424,20 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: fixed; bottom: 0; left: 0; right: 0;
   z-index: 40;
   background: var(--surface-1);
-  border-top: 1px solid var(--border);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
-  padding: 4px 40px 4px 8px;
-  animation: slideUp 0.4s ease-out;
+  border-top: 1px solid var(--border-strong);
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.5);
+  padding: 4px 44px 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+  animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .anchor-ad-close {
-  position: absolute; top: 4px; right: 8px; z-index: 2;
+  position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+  z-index: 2;
   display: grid; place-items: center;
-  width: 24px; height: 24px; border-radius: 50%;
+  width: 26px; height: 26px; border-radius: 50%;
   background: var(--surface-2); border: 1px solid var(--border);
   color: var(--text-dim); cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -619,7 +614,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 @media (min-width: 600px) {
   :root { --fs-2xl: 30px; }
 
-  .main { padding: var(--s5) var(--s5) var(--s8); }
+  .main { padding: var(--s5) var(--s5) 100px; }
   .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s4); }
   .hero { padding: var(--s6); }
   .hero p { display: block; }
@@ -662,7 +657,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .search { height: 40px; }
   .search input { font-size: var(--fs-md); }
 
-  .main { padding: var(--s6) var(--s6) var(--s8); }
+  .main { padding: var(--s6) var(--s6) 100px; }
   .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s4); }
   .hero { padding: var(--s7); border-radius: var(--r-xl); margin-bottom: var(--s5); }
 }
@@ -672,7 +667,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    ========================================================================== */
 @media (min-width: 1280px) {
   .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s5); }
-  .main { padding: var(--s7) var(--s7) var(--s8); }
+  .main { padding: var(--s7) var(--s7) 100px; }
 }
 @media (min-width: 1600px) {
   .grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
