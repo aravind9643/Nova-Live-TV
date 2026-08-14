@@ -387,23 +387,30 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* In-feed ad sits inside the grid flow on mobile. */
 .ad-grid { margin-bottom: var(--s4); }
 
-/* Sidebar ad — desktop-only display unit below filter list. */
+/* Header leaderboard — thin horizontal banner below the app bar. */
+.ad-leaderboard {
+  margin: 0;
+  border-radius: 0;
+  border-left: 0; border-right: 0; border-top: 0;
+  padding: var(--s5) var(--s3) var(--s2);
+  max-height: 100px;
+}
+/* Hide header leaderboard on mobile — the anchor ad covers small screens. */
+@media (max-width: 640px) { .ad-leaderboard { display: none; } }
+
+/* Sidebar ad — desktop-only, short so filter list isn't squeezed. */
 .ad-sidebar {
   margin: var(--s3) var(--s2) var(--s2);
   flex: 0 0 auto;
-  min-height: 250px;
+  max-height: 280px;
   border-radius: var(--r-sm);
 }
 @media (max-width: 860px) { .ad-sidebar { display: none; } }
 
-/* In-feed ad — full-width display banner blending between grid rows. */
-.ad-infeed {
-  margin: var(--s2) 0;
-  padding: var(--s5) var(--s3) var(--s2);
-  min-height: 260px;
-  border-radius: var(--r-sm);
-  border-style: solid;
-  background: linear-gradient(135deg, var(--surface-1), var(--surface-2));
+/* Second grid ad — between the channel list and multiplex. */
+.ad-grid2 {
+  margin-top: var(--s4);
+  margin-bottom: var(--s4);
 }
 
 /* Multiplex ad — sponsored content grid at the bottom of the page. */
@@ -415,7 +422,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-style: solid;
 }
 
-/* Player screen ad — sits right below the video player stage in watch view. */
+/* Player screen ad — sits below the video player stage in watch view. */
 .ad-player {
   margin-bottom: var(--s5);
   min-height: 250px;

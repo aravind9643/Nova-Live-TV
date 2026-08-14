@@ -330,6 +330,9 @@ export default function App() {
         </div>
       </header>
 
+      {/* Header leaderboard — thin banner below the app bar */}
+      <AdSlot slot="header2" format="horizontal" className="ad-leaderboard" />
+
       {/* ---------------- Drawer / sidebar ---------------- */}
       {menuOpen && <div className="drawer-backdrop" onClick={() => setMenuOpen(false)} />}
 
@@ -367,7 +370,7 @@ export default function App() {
         </div>
 
         <div className="facets">
-          {Object.entries(FACETS).map(([facet, { plural }]) => {
+          {Object.entries(FACETS).map(([facet, { plural }], facetIdx) => {
             const q = facetFilter.trim().toLowerCase();
             const all = facets[facet] || [];
             const active = selected[facet] || [];
@@ -432,7 +435,10 @@ export default function App() {
           })}
         </div>
 
-        {/* Sidebar ad — desktop only, short unit so it doesn't squeeze the filter list */}
+        {/* Mid-sidebar ad — between filters (desktop only) */}
+        <AdSlot slot="sidebar2" format="auto" className="ad-sidebar ad-sidebar-mid" />
+
+        {/* Sidebar ad — desktop only */}
         <AdSlot slot="sidebar" format="auto" className="ad-sidebar" />
         <div className="sidebar-foot">Streams by iptv-org · free &amp; open</div>
       </aside>
@@ -496,14 +502,19 @@ export default function App() {
             <AdSlot slot="grid" format="fluid" className="ad-grid" />
 
             {results.length > 0 ? (
-              <VirtualGrid
-                items={results}
-                scrollParent={mainRef}
-                onPlay={play}
-                isFavorite={isFavorite}
-                onToggleFavorite={toggleFavorite}
-                statusOf={statusOf}
-              />
+              <>
+                <VirtualGrid
+                  items={results}
+                  scrollParent={mainRef}
+                  onPlay={play}
+                  isFavorite={isFavorite}
+                  onToggleFavorite={toggleFavorite}
+                  statusOf={statusOf}
+                />
+
+                {/* Second ad below the channel grid */}
+                <AdSlot slot="grid2" format="auto" className="ad-grid2" />
+              </>
             ) : (
               <div className="center-state small">
                 <p>

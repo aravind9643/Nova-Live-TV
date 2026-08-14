@@ -92,6 +92,8 @@ export default function WatchScreen({
           Swipe the video left or right to change channel · <kbd>←</kbd> <kbd>→</kbd> to zap ·
           {' '}<kbd>F</kbd> fullscreen · <kbd>M</kbd> mute
         </p>
+
+        <AdSlot slot="player2" format="auto" className="ad-player" />
       </div>
     </div>
   );
