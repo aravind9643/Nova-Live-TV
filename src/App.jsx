@@ -84,6 +84,20 @@ export default function App() {
     if (found) { setPlaying(found); pushRecent(found); }
   }, [playParam, channels, favorites, recent, playing, pushRecent]);
 
+  // Dynamic SEO title updates for search engines and user browser history
+  useEffect(() => {
+    if (playing) {
+      document.title = `Watch ${playing.name} Live Stream · NOVA Live TV`;
+    } else if (query.trim()) {
+      document.title = `Search "${query}" Live TV Channels · NOVA Live TV`;
+    } else if (activeChips.length > 0) {
+      const filterSummary = activeChips.map((c) => c.value).join(', ');
+      document.title = `${filterSummary} Channels · NOVA Live TV`;
+    } else {
+      document.title = 'NOVA Live TV · Watch 13,000+ Free Live TV Channels Online';
+    }
+  }, [playing, query, activeChips]);
+
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };

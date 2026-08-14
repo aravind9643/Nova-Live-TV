@@ -3,34 +3,105 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon"
-    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0b0f17" />
+
+  <!-- Primary SEO Meta Tags -->
+  <title>NOVA Live TV · Watch 13,000+ Free Live TV Channels Online</title>
+  <meta name="title" content="NOVA Live TV · Watch 13,000+ Free Live TV Channels Online" />
+  <meta name="description"
+    content="Watch over 13,000 free live TV channels from around the world. Stream live news, sports, movies, animation, music, and entertainment in HD directly in your browser on NOVA Live TV." />
+  <meta name="keywords"
+    content="live tv, free live tv, watch live tv online, free iptv, world live channels, stream tv channels, live news, live sports stream, free television, nova live tv" />
+  <meta name="author" content="NOVA Live TV" />
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+  <meta name="googlebot" content="index, follow" />
+  <link rel="canonical" href="https://nova-live-tv.vercel.app/" />
+
+  <!-- Open Graph / Facebook / WhatsApp -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="NOVA Live TV" />
+  <meta property="og:url" content="https://nova-live-tv.vercel.app/" />
+  <meta property="og:title" content="NOVA Live TV · Watch 13,000+ Free Live TV Channels Online" />
+  <meta property="og:description"
+    content="Stream 13,000+ free live TV channels from across the globe in HD. Discover news, sports, entertainment, movies, and music with instant playback." />
+  <meta property="og:image" content="https://nova-live-tv.vercel.app/icon.svg" />
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:url" content="https://nova-live-tv.vercel.app/" />
+  <meta name="twitter:title" content="NOVA Live TV · Watch 13,000+ Free Live TV Channels Online" />
+  <meta name="twitter:description"
+    content="Stream 13,000+ free live TV channels from across the globe in HD. No sign-up, free & open streaming." />
+  <meta name="twitter:image" content="https://nova-live-tv.vercel.app/icon.svg" />
+
+  <!-- Favicon & PWA -->
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/icon.svg" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Nova TV" />
-  <title>Nova · Live TV</title>
+
+  <!-- Fonts Preconnect -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
     rel="stylesheet" />
+
+  <!-- Structured Data: JSON-LD Schema for Google Rich Snippets -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://nova-live-tv.vercel.app/#website",
+        "url": "https://nova-live-tv.vercel.app/",
+        "name": "NOVA Live TV",
+        "description": "Watch 13,000+ Free Live TV Channels from around the world online in HD.",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://nova-live-tv.vercel.app/?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      },
+      {
+        "@type": "WebApplication",
+        "@id": "https://nova-live-tv.vercel.app/#app",
+        "name": "NOVA Live TV",
+        "url": "https://nova-live-tv.vercel.app/",
+        "applicationCategory": "EntertainmentApplication",
+        "operatingSystem": "All",
+        "browserRequirements": "Requires JavaScript. Requires HTML5.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "description": "Free web-based live TV streaming player with over 13,000 global broadcast streams organized by category, language, and country."
+      }
+    ]
+  }
+  </script>
+
+  <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9316330718026325"
     crossorigin="anonymous"></script>
-  <!--
-    NOTE: the adsbygoogle.js tag above already carries ?client=…, which enables
-    Auto Ads on its own. Pushing `enable_page_level_ads` here as well throws
-    "Only one 'enable_page_level_ads' allowed per page" and aborts the config,
-    so it is deliberately omitted. Anchor placement is controlled in the AdSense
-    dashboard (Ads → By site → Auto ads), with a JS fallback in App.jsx that
-    relocates any top-docked anchor away from the header.
-  -->
 </head>
 
 <body>
+  <noscript>
+    <div style="padding: 24px; font-family: sans-serif; background: #0b0f17; color: #eaf0fa;">
+      <h1>NOVA Live TV · Free Global Live TV Streaming</h1>
+      <p>Watch over 13,000 free live TV channels from around the world. Stream news, sports, entertainment, movies, music, animation, and documentary channels directly in your web browser.</p>
+      <h2>Categories</h2>
+      <p>General, News, Entertainment, Religious, Music, Movies, Series, Sports, Kids, Animation, Education, Documentary, and more.</p>
+      <p>Please enable JavaScript in your browser to start streaming.</p>
+    </div>
+  </noscript>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
