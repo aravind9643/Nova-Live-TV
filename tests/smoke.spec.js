@@ -51,3 +51,46 @@ test('filters open as a sheet on phones', async ({ page, isMobile }) => {
   await page.locator('.filters-apply button').click();
   await expect(page.locator('.filters.open')).toHaveCount(0);
 });
+
+test('Back keeps the channel playing in a mini-player', async ({ page }) => {
+  await firstCard(page).click();
+  await expect(page.locator('.watch')).toBeVisible();
+  await page.goBack();
+  const mini = page.locator('.mini');
+  await expect(mini).toBeVisible();
+  await mini.locator('.mini-expand').click();
+  await expect(page.locator('.watch')).toBeVisible();
+  await page.goBack();
+  await page.locator('.mini').getByLabel('Stop playback').click();
+  await expect(page.locator('.mini')).toHaveCount(0);
+});
+
+test('arrow keys move focus across the grid', async ({ page }) => {
+  await firstCard(page).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('[data-index="1"] .card-hit')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  const cols = await page.locator('.grid').evaluate((g) => getComputedStyle(g).gridTemplateColumns.split(' ').length);
+  await expect(page.locator(`[data-index="${1 + cols}"] .card-hit`)).toBeFocused();
+});
+
+test('a shared favorites link offers to import', async ({ page }) => {
+  const token = await page.evaluate(async () => {
+    const { encodeFavorites } = await import('/src/lib/shareList.js');
+    return encodeFavorites([{ name: 'Shared One', url: 'https://example.com/one.m3u8' }]);
+  });
+  await page.goto('about:blank'); // a fresh load, not a same-document hash change
+  await page.goto(`/#import=${token}`);
+  await expect(page.locator('.toast')).toContainText('Import 1 shared favorite');
+  await expect(page).not.toHaveURL(/import=/);
+  await page.locator('.toast button', { hasText: 'Import' }).click();
+  await expect(page.locator('.section-title h1')).toHaveText('Favorites');
+  await expect(page.locator('.card-name', { hasText: 'Shared One' })).toBeVisible();
+});
+
+test('shows an offline notice when the connection drops', async ({ page, context }) => {
+  await context.setOffline(true);
+  await expect(page.locator('.notice.offline')).toBeVisible();
+  await context.setOffline(false);
+  await expect(page.locator('.notice.offline')).toHaveCount(0);
+});

@@ -3,14 +3,14 @@ import { Play, Radio, Star, AlertTriangle } from 'lucide-react';
 import { logoSrc, onLogoError } from '../lib/img';
 import { flagOf } from '../lib/flags';
 
-function ChannelCard({ channel, onPlay, favorite, onToggleFavorite, health = 'unknown' }) {
+function ChannelCard({ channel, index, onPlay, favorite, onToggleFavorite, health = 'unknown' }) {
   const country = channel.country?.[0];
   const sub = [channel.primary, country].filter(Boolean)
     .filter((v, i, a) => a.indexOf(v) === i).join(' · ');
   const flag = flagOf(country);
 
   return (
-    <div className={`card ${health === 'bad' ? 'is-dead' : ''}`}>
+    <div className={`card ${health === 'bad' ? 'is-dead' : ''}`} data-index={index}>
       <button
         className="card-hit"
         onClick={() => onPlay(channel)}

@@ -1,7 +1,7 @@
 import { useMemo, useState, useDeferredValue, useCallback, useEffect, useRef } from 'react';
 import {
   Search, Tv, WifiOff, Star, History, X, Home, SlidersHorizontal, Clock, RotateCcw,
-  Sun, Moon, Monitor, Play, ArrowUpDown,
+  Sun, Moon, Monitor, Play, ArrowUpDown, Download, Share2,
 } from 'lucide-react';
 import { useCatalogue } from './lib/useCatalogue';
 import { useLibrary, channelKey } from './lib/useLibrary';
@@ -9,6 +9,8 @@ import { useFilters, VIEW_ALL, VIEW_FAVORITES, VIEW_RECENT, SORTS } from './lib/
 import { useAdGuard } from './lib/useAdGuard';
 import { usePrefs } from './lib/usePrefs';
 import { logoSrc, onLogoError } from './lib/img';
+import { useOnline, useInstallPrompt } from './lib/useDevice';
+import { favoritesLink, decodeFavorites, readImportToken } from './lib/shareList';
 import { useStreamHealth } from './lib/useStreamHealth';
 import { useScrollMemory } from './lib/useScrollMemory';
 import { searchChannels, loadRecentSearches, pushRecentSearch } from './lib/search';
@@ -19,6 +21,7 @@ import AnchorAd from './components/AnchorAd';
 import MultiplexAd from './components/MultiplexAd';
 import WatchScreen from './components/WatchScreen';
 import Toast from './components/Toast';
+import MiniPlayer from './components/MiniPlayer';
 
 // Quick-pick categories shown as a scrollable chip row above the grid.
 const QUICK_CHIPS = 12;
@@ -37,7 +40,9 @@ function setMeta(name, content, attr = 'name') {
 
 export default function App() {
   const { status, channels, facets, stale, enriching } = useCatalogue();
-  const { favorites, recent, isFavorite, toggleFavorite, pushRecent } = useLibrary();
+  const { favorites, recent, isFavorite, toggleFavorite, addFavorites, pushRecent } = useLibrary();
+  const online = useOnline();
+  const install = useInstallPrompt();
   const { report, statusOf, isBad } = useStreamHealth();
   const { prefs, setPref } = usePrefs();
   const {
@@ -50,6 +55,8 @@ export default function App() {
   const [recentSearches, setRecentSearches] = useState(loadRecentSearches);
   const [searchFocused, setSearchFocused] = useState(false);
   const [toast, setToast] = useState(null);
+  // The channel that keeps playing in the corner after leaving the watch screen.
+  const [mini, setMini] = useState(null);
 
   const mainRef = useRef(null);
   const searchRef = useRef(null);
@@ -167,6 +174,7 @@ export default function App() {
     if (shouldPush) pushedEntry.current = true;
     playingRef.current = c;
     setPlaying(c);
+    setMini(null);
     update({ play: channelKey(c) }, { push: shouldPush });
     pushRecent(c);                    // the watch screen's rail reads this
     if (query.trim()) setRecentSearches(pushRecentSearch(query));
@@ -180,6 +188,7 @@ export default function App() {
       window.history.back();
     } else {
       // Arrived via a deep link — no entry of ours to pop.
+      setMini(playingRef.current);
       playingRef.current = null;
       setPlaying(null);
       update({ play: null });
@@ -192,6 +201,7 @@ export default function App() {
     if (!playParam && playing) {
       pushedEntry.current = false; // the entry was consumed by the Back press
       playingRef.current = null;
+      setMini(playing); // keep watching in the corner
       setPlaying(null);
     }
   }, [playParam, playing]);
@@ -228,6 +238,33 @@ export default function App() {
     });
   }, [isFavorite, toggleFavorite]);
   const clearToast = useCallback(() => setToast(null), []);
+
+  // A shared favorites link (#import=…): offer to merge it, then drop the
+  // token from the URL either way.
+  useEffect(() => {
+    const token = readImportToken();
+    if (!token) return;
+    const list = decodeFavorites(token);
+    update({}); // rewrites the URL without the unknown `import` param
+    if (!list.length) return;
+    setToast({
+      id: Date.now(),
+      duration: 15000,
+      message: `Import ${list.length} shared favorite${list.length === 1 ? '' : 's'}?`,
+      action: { label: 'Import', run: () => { addFavorites(list); update({ view: VIEW_FAVORITES }); } },
+    });
+  }, [update, addFavorites]);
+
+  const shareFavorites = useCallback(async () => {
+    const url = favoritesLink(favorites);
+    try {
+      if (navigator.share) await navigator.share({ title: 'My NOVA Live TV favorites', url });
+      else {
+        await navigator.clipboard.writeText(url);
+        setToast({ id: Date.now(), message: 'Link to your favorites copied' });
+      }
+    } catch { /* dismissed */ }
+  }, [favorites]);
 
   const goHome = useCallback(() => {
     update({ view: VIEW_ALL, query: '', selected: { category: [], country: [], language: [] } });
@@ -291,6 +328,8 @@ export default function App() {
 
   return (
     <div className="app">
+      <a className="skip-link" href="#content">Skip to channels</a>
+
       {/* ---------------- Header ---------------- */}
       <header className="topbar">
         <button className="brand" onClick={goHome} aria-label="NOVA Live TV — home">
@@ -344,6 +383,12 @@ export default function App() {
           </button>
         </nav>
 
+        {install && (
+          <button className="pill install-btn" onClick={install}>
+            <Download size={15} /> Install
+          </button>
+        )}
+
         <button
           className="icon-btn theme-btn"
           onClick={() => setPref('theme', NEXT_THEME[prefs.theme] || 'system')}
@@ -369,7 +414,7 @@ export default function App() {
       />
 
       {/* ---------------- Main ---------------- */}
-      <main className="main" ref={mainRef}>
+      <main className="main" ref={mainRef} id="content" tabIndex={-1}>
         {status === 'ready' && view === VIEW_ALL && quickCats.length > 0 && (
           <div className="quick" role="toolbar" aria-label="Quick categories">
             <button className={`chip ${!activeCats.length ? 'on' : ''}`} onClick={() => update({ selected: { ...selected, category: [] } })}>
@@ -389,6 +434,12 @@ export default function App() {
         )}
 
         <div className="content">
+          {!online && (
+            <div className="notice offline" role="status">
+              <WifiOff size={15} /> You’re offline. Saved channels still show, but streams need a connection.
+            </div>
+          )}
+
           {(stale || enriching) && (
             <div className="notice">
               <span className="live-dot" />
@@ -446,6 +497,11 @@ export default function App() {
                   <h1>{heading}</h1>
                   <span className="count"><span className="live-dot" /> {results.length.toLocaleString()} live</span>
                 </div>
+                {view === VIEW_FAVORITES && favorites.length > 0 && (
+                  <button className="pill share-list" onClick={shareFavorites}>
+                    <Share2 size={15} /> Share list
+                  </button>
+                )}
                 <label className="sort">
                   <ArrowUpDown size={14} />
                   <select value={sort} onChange={(e) => update({ sort: e.target.value })} aria-label="Sort channels">
@@ -526,6 +582,15 @@ export default function App() {
           </button>
         ))}
       </nav>
+
+      {mini && (
+        <MiniPlayer
+          channel={mini}
+          onExpand={() => play(mini)}
+          onClose={() => setMini(null)}
+          onHealth={report}
+        />
+      )}
 
       <AnchorAd />
       <Toast toast={toast} onDone={clearToast} />

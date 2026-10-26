@@ -46,7 +46,9 @@ npm run preview
 # Quality
 npm run lint         # ESLint
 npm run format       # Prettier
-npm test             # Playwright smoke tests (phone + desktop); first run: npx playwright install chromium
+npm test             # unit (Vitest) + e2e (Playwright, phone + desktop)
+npm run test:unit    # Vitest only
+npm run test:e2e     # Playwright only; first run: npx playwright install chromium
 npm run og           # re-render public/og.png (link-preview image)
 ```
 
@@ -126,7 +128,20 @@ The app ships with **Google AdSense display ad slots** in three placements — u
 >
 > **Policy note:** AdSense prohibits monetizing copyrighted video you're not authorized to distribute. These are third-party IPTV streams — confirm your usage is authorized before enabling ads, or you risk ad-unit disapproval / account penalties.
 
+## 🚢 Deploy checklist
+
+These steps happen outside the code:
+
+1. **Consent banner (EEA / UK / Switzerland).** In AdSense → *Privacy & messaging* → *European regulations*, create and publish a message. The page already sets Consent Mode v2 defaults; Google's CMP shows the banner and updates them. The *Privacy settings* link in the filters panel reopens it.
+2. **Search Console.** Add the site at search.google.com/search-console, verify it (Vercel: DNS or HTML-tag method), then submit `https://nova-live-tv.vercel.app/sitemap.xml`. The build pre-renders every sitemap page (`dist/category|country|language/<name>/index.html`).
+3. **Error reporting (optional).** Create a Sentry project and set `VITE_SENTRY_DSN` in Vercel's environment variables. Without it nothing is loaded or sent.
+4. **CI.** `.github/workflows/ci.yml` runs lint, unit tests, the build and the Playwright suite on every push to `main` and on pull requests.
+
 ## ⚠️ Notes & limitations
+
+- Casting uses AirPlay on Safari and the browser Remote Playback API elsewhere. Chrome can't remote-play hls.js (MSE) streams, so the Cast button only appears where the browser reports a device is available for the current stream.
+- The mini-player starts a fresh connection when you go back to the grid, so there's a brief re-buffer.
+
 
 - **Stream availability varies.** These are free, community-maintained public streams — a portion are offline or geo-blocked at any given time. Nova detects fatal stream errors and prompts you to retry or pick another channel.
 - **No EPG / program guide.** iptv-org does not host a ready-to-use program guide; a comprehensive EPG would require a backend to run their scraper. Nova is a live-channel browser, not a guide.

@@ -24,7 +24,7 @@ export const SORTS = {
 const FACET_KEYS = ['category', 'country', 'language'];
 const EMPTY = { category: [], country: [], language: [] };
 
-function parse() {
+export function parse() {
   const p = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const sel = {};
   for (const k of FACET_KEYS) {
@@ -47,7 +47,7 @@ function parse() {
 }
 
 // Returns the full URL (path + hash) for a state.
-function toUrl({ selected, query, view, sort, play }) {
+export function toUrl({ selected, query, view, sort, play }) {
   const chips = FACET_KEYS.flatMap((k) => (selected[k] || []).map((v) => [k, v]));
   const usePath = chips.length === 1 && (!view || view === VIEW_ALL);
   const path = usePath ? `/${chips[0][0]}/${encodeURIComponent(chips[0][1])}` : '/';

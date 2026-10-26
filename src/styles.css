@@ -21,7 +21,7 @@
   /* Text */
   --text: #eef2f8;
   --text-dim: #a2adc2;
-  --text-faint: #6c7890;
+  --text-faint: #8490a8;
 
   /* Brand */
   --accent: #7c5cff;
@@ -76,7 +76,7 @@
     --border-strong: rgba(20, 30, 60, 0.18);
     --text: #121826;
     --text-dim: #4a5568;
-    --text-faint: #7a8599;
+    --text-faint: #5b6679;
     --accent-soft: rgba(124, 92, 255, 0.12);
     --shadow-2: 0 10px 30px rgba(20, 30, 60, 0.12);
     --shadow-3: 0 24px 64px rgba(20, 30, 60, 0.18);
@@ -93,7 +93,7 @@
   --border-strong: rgba(20, 30, 60, 0.18);
   --text: #121826;
   --text-dim: #4a5568;
-  --text-faint: #7a8599;
+  --text-faint: #5b6679;
   --accent-soft: rgba(124, 92, 255, 0.12);
   --shadow-2: 0 10px 30px rgba(20, 30, 60, 0.12);
   --shadow-3: 0 24px 64px rgba(20, 30, 60, 0.18);
@@ -248,8 +248,8 @@ kbd {
 .topbar {
   grid-area: top; z-index: 20;
   display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas: 'brand theme' 'search search';
+  grid-template-columns: 1fr auto auto;
+  grid-template-areas: 'brand install theme' 'search search search';
   align-items: center; gap: var(--s2) var(--s3);
   padding: calc(var(--s2) + var(--safe-t)) var(--gutter) var(--s3);
   background: var(--glass);
@@ -286,6 +286,7 @@ kbd {
 
 .top-nav { display: none; grid-area: nav; gap: var(--s1); }
 .theme-btn { grid-area: theme; }
+.install-btn { grid-area: install; background: var(--accent-soft); color: var(--text); border-color: var(--accent-line); }
 
 /* ---- Main / scrolling content ---- */
 .main {
@@ -752,6 +753,48 @@ kbd {
 
 .stage-volume { display: none; width: 90px; accent-color: #fff; cursor: pointer; }
 
+/* Static content baked into pre-rendered pages; React replaces it on load. */
+.prerender { max-width: 960px; margin: 0 auto; padding: var(--s7) var(--gutter); overflow-y: auto; height: 100%; }
+.prerender h1 { font-size: var(--fs-2xl); margin-bottom: var(--s2); }
+.prerender p { color: var(--text-dim); margin-bottom: var(--s5); }
+.prerender ul { columns: 2 180px; gap: var(--s5); padding: 0; margin: 0; list-style: none; color: var(--text-dim); line-height: 2; }
+
+.skip-link {
+  position: fixed; top: 8px; left: 8px; z-index: 100;
+  padding: var(--s2) var(--s4); border-radius: var(--r-md);
+  background: var(--accent); color: #fff; font-weight: 700; text-decoration: none;
+  transform: translateY(-200%);
+}
+.skip-link:focus { transform: none; }
+.main:focus { outline: none; }
+
+.notice.offline { color: var(--text); border-color: rgba(251, 191, 36, 0.45); background: rgba(251, 191, 36, 0.1); }
+.link-btn.inline { padding: 0; min-height: 0; font-size: inherit; }
+.share-list { justify-self: start; background: var(--surface-2); border-color: var(--border); }
+
+/* Mini-player: bottom-right, above the bottom nav and anchor ad. */
+.mini {
+  position: fixed; z-index: 45;
+  right: 12px; bottom: calc(var(--nav-h) + var(--safe-b) + 72px);
+  width: min(260px, 62vw);
+  border-radius: var(--r-md); overflow: hidden;
+  background: var(--surface-1); border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-3);
+}
+.mini-video { position: relative; }
+.mini .stage-controls, .mini .stage-state span, .mini .stage-actions { display: none; }
+.mini .stage-state { padding: var(--s2); }
+.mini-expand {
+  position: absolute; inset: 0; z-index: 5;
+  display: grid; place-items: start end; padding: 8px;
+  color: #fff; background: linear-gradient(200deg, rgba(0, 0, 0, 0.5), transparent 45%);
+}
+.mini-bar { display: flex; align-items: center; gap: var(--s2); padding: 2px 2px 2px var(--s3); }
+.mini-name {
+  flex: 1; min-width: 0; text-align: left; font-weight: 600; font-size: var(--fs-sm);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 36px;
+}
+
 /* ============================== Motion =================================== */
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -765,8 +808,8 @@ kbd {
 @media (min-width: 600px) {
   :root { --gutter: 24px; }
   .topbar {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas: 'brand search theme';
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: 'brand search install theme';
     gap: var(--s5);
   }
   .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s5) var(--s4); }
@@ -797,14 +840,16 @@ kbd {
     grid-template-areas: 'top top' 'side main';
   }
   .topbar {
-    grid-template-columns: calc(var(--sidebar-w) - var(--gutter) - var(--s5)) minmax(0, 640px) 1fr auto;
-    grid-template-areas: 'brand search nav theme';
+    grid-template-columns: calc(var(--sidebar-w) - var(--gutter) - var(--s5)) minmax(0, 640px) 1fr auto auto;
+    grid-template-areas: 'brand search nav install theme';
     padding-block: var(--s3);
   }
   .top-nav { display: flex; justify-self: end; }
   .bottom-nav { display: none; }
   .anchor-ad { bottom: 0; left: var(--sidebar-w); }
   .toast { bottom: 92px; }
+  .mini { right: 24px; bottom: 84px; width: 340px; }
+  .section-head .share-list { grid-column: 1 / -1; grid-row: 2; }
   .section-head { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
   .section-head .active-chips { grid-column: 1 / -1; }
   .sort { justify-self: end; }

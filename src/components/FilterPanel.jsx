@@ -1,7 +1,14 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Search, X, Check, ChevronDown, SlidersHorizontal, EyeOff } from 'lucide-react';
 import { FACETS } from '../lib/useCatalogue';
 import { flagOf } from '../lib/flags';
+
+// Re-opens Google's consent message (AdSense Privacy & messaging CMP).
+function openPrivacySettings() {
+  window.googlefc = window.googlefc || {};
+  window.googlefc.callbackQueue = window.googlefc.callbackQueue || [];
+  window.googlefc.callbackQueue.push(() => window.googlefc.showRevocationMessage?.());
+}
 
 // How many values to show per facet before "show all".
 const FACET_PREVIEW = 10;
@@ -16,9 +23,34 @@ export default function FilterPanel({
   const [expanded, setExpanded] = useState({});
   const [collapsed, setCollapsed] = useState({});
   const q = filter.trim().toLowerCase();
+  const sheetRef = useRef(null);
+
+  // As a phone sheet it's modal: move focus in, trap Tab inside, and hand
+  // focus back to whatever opened it. (On desktop it's a plain sidebar.)
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!open || !sheet || window.matchMedia('(min-width: 1024px)').matches) return;
+    const opener = document.activeElement;
+    const focusables = () => [...sheet.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+    focusables()[0]?.focus();
+    const onKey = (e) => {
+      if (e.key !== 'Tab') return;
+      const els = focusables();
+      if (!els.length) return;
+      const first = els[0];
+      const last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    sheet.addEventListener('keydown', onKey);
+    return () => {
+      sheet.removeEventListener('keydown', onKey);
+      opener?.focus?.();
+    };
+  }, [open]);
 
   // Drag the sheet's header down to dismiss it (phones).
-  const sheetRef = useRef(null);
   const drag = useRef(null);
   const onDragStart = (e) => { drag.current = { y: e.touches[0].clientY, dy: 0 }; };
   const onDragMove = (e) => {
@@ -43,7 +75,14 @@ export default function FilterPanel({
     <>
       <div className={`sheet-backdrop ${open ? 'show' : ''}`} onClick={onClose} aria-hidden />
 
-      <aside ref={sheetRef} className={`filters ${open ? 'open' : ''}`} aria-label="Filters">
+      <aside
+        ref={sheetRef}
+        id="filters"
+        className={`filters ${open ? 'open' : ''}`}
+        aria-label="Filters"
+        aria-modal={open || undefined}
+        role={open ? 'dialog' : undefined}
+      >
         <div className="sheet-drag" onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}>
           <div className="sheet-grip" aria-hidden />
           <div className="filters-head">
@@ -139,7 +178,11 @@ export default function FilterPanel({
             );
           })}
 
-          <p className="filters-foot">Streams by iptv-org · free &amp; open</p>
+          <p className="filters-foot">
+            Streams by iptv-org · free &amp; open
+            {' · '}
+            <button className="link-btn inline" onClick={openPrivacySettings}>Privacy settings</button>
+          </p>
         </div>
 
         {/* Phone-only sticky action: shows the live result count. */}

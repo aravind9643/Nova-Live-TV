@@ -57,5 +57,13 @@ export function useLibrary() {
     });
   }, []);
 
-  return { favorites, recent, isFavorite, toggleFavorite, pushRecent };
+  // Merge channels in (e.g. from a shared list), skipping ones already saved.
+  const addFavorites = useCallback((list) => {
+    setFavorites((prev) => {
+      const have = new Set(prev.map(channelKey));
+      return [...prev, ...list.filter((c) => !have.has(channelKey(c)))];
+    });
+  }, []);
+
+  return { favorites, recent, isFavorite, toggleFavorite, addFavorites, pushRecent };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ChannelCard from './ChannelCard';
 import { channelKey } from '../lib/useLibrary';
 
@@ -97,19 +97,46 @@ export default function VirtualGrid({ items, scrollParent, onPlay, isFavorite, o
     };
   }, [scrollParent, rowH, cols, items.length]);
 
+  // Arrow-key / TV-remote navigation between cards. The target may not be
+  // mounted yet (virtualised), so scroll its row into view first, then focus it
+  // once the window has re-rendered.
+  const onKeyDown = useCallback((e) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols }[e.key];
+    const card = e.target.closest?.('[data-index]');
+    if (!step || !card) return;
+    const to = Number(card.dataset.index) + step;
+    if (to < 0 || to >= items.length) return;
+    e.preventDefault();
+
+    const focus = () => {
+      const el = spacerRef.current?.querySelector(`[data-index="${to}"] .card-hit`);
+      if (!el) return false;
+      el.focus({ preventScroll: true });
+      el.scrollIntoView({ block: 'nearest' });
+      return true;
+    };
+    if (focus()) return;
+    const scroller = scrollParent?.current;
+    if (scroller && spacerRef.current) {
+      scroller.scrollTop = spacerRef.current.offsetTop + Math.floor(to / cols) * rowH - scroller.clientHeight / 2;
+    }
+    requestAnimationFrame(() => requestAnimationFrame(focus));
+  }, [cols, rowH, items.length, scrollParent]);
+
   const slice = items.slice(range.start, range.end);
   const offsetY = Math.floor(range.start / cols) * rowH;
 
   return (
-    <div ref={spacerRef} style={{ position: 'relative', height: totalH }}>
+    <div ref={spacerRef} style={{ position: 'relative', height: totalH }} onKeyDown={onKeyDown}>
       <div
         ref={gridRef}
         className="grid"
         style={{ position: 'absolute', top: offsetY, left: 0, right: 0 }}
       >
-        {slice.map((c) => (
+        {slice.map((c, i) => (
           <ChannelCard
             key={channelKey(c)}
+            index={range.start + i}
             channel={c}
             onPlay={onPlay}
             favorite={isFavorite(c)}

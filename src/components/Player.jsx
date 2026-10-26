@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Volume2, VolumeX, Maximize, Minimize, Loader2, AlertTriangle,
-  SkipBack, SkipForward, RotateCcw, PictureInPicture2,
+  SkipBack, SkipForward, RotateCcw, PictureInPicture2, Cast, WifiOff,
 } from 'lucide-react';
 import { tap } from '../lib/haptics';
 
@@ -27,6 +27,7 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
   const [status, setStatus] = useState('loading'); // loading | playing | error
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
+  const [castable, setCastable] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [chrome, setChrome] = useState(true);
   const [attempt, setAttempt] = useState(0);
@@ -123,6 +124,35 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
     setVolume(v);
     setMuted(v === 0);
     wakeChrome();
+  }, [wakeChrome]);
+
+  // Casting: AirPlay on Safari, the Remote Playback API (Chromecast etc.) on
+  // Chromium. Remote playback only works for native `src` playback, not hls.js
+  // (MSE) — so the button simply stays hidden where it can't work.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    let watchId = null;
+    const onAirplay = (e) => setCastable(e.availability === 'available');
+    if (window.WebKitPlaybackTargetAvailabilityEvent) {
+      video.addEventListener('webkitplaybacktargetavailabilitychanged', onAirplay);
+    } else if (video.remote?.watchAvailability) {
+      video.remote.watchAvailability((ok) => setCastable(ok))
+        .then((id) => { watchId = id; })
+        .catch(() => setCastable(false));
+    }
+    return () => {
+      video.removeEventListener('webkitplaybacktargetavailabilitychanged', onAirplay);
+      if (watchId !== null) video.remote?.cancelWatchAvailability(watchId).catch(() => {});
+    };
+  }, [channel]);
+
+  const cast = useCallback(() => {
+    const video = videoRef.current;
+    wakeChrome();
+    if (!video) return;
+    if (video.webkitShowPlaybackTargetPicker) video.webkitShowPlaybackTargetPicker();
+    else video.remote?.prompt().catch(() => {});
   }, [wakeChrome]);
 
   const togglePip = useCallback(async () => {
@@ -246,7 +276,7 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      <video ref={videoRef} playsInline autoPlay className="stage-video" />
+      <video ref={videoRef} playsInline autoPlay x-webkit-airplay="allow" className="stage-video" />
 
       {status === 'loading' && (
         <div className="stage-state">
@@ -257,7 +287,9 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
       {status === 'error' && (
         <div className="stage-state error">
           <AlertTriangle size={34} />
-          <span>This stream is offline or geo-blocked.</span>
+          {navigator.onLine === false
+            ? <span><WifiOff size={14} /> You’re offline — reconnect and try again.</span>
+            : <span>This stream is offline or geo-blocked.</span>}
           <div className="stage-actions">
             <button className="btn-ghost" onClick={() => setAttempt((a) => a + 1)}>
               <RotateCcw size={15} /> Try again
@@ -295,6 +327,11 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
           onChange={(e) => changeVolume(Number(e.target.value))}
           aria-label="Volume"
         />
+        {castable && (
+          <button className="stage-btn" onClick={cast} title="Cast to a device" aria-label="Cast to a device">
+            <Cast size={20} />
+          </button>
+        )}
         {canPip && (
           <button className="stage-btn" onClick={togglePip} title="Picture in picture (P)" aria-label="Picture in picture">
             <PictureInPicture2 size={20} />
