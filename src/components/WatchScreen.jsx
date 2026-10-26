@@ -79,7 +79,9 @@ export default function WatchScreen({
                   {channel.quality && <span className="tag">{channel.quality}</span>}
                   {meta.map((m) => (
                     <span key={m} className="meta-item">
-                      {m === channel.country?.[0] && flagOf(m) && <span className="flag">{flagOf(m)}</span>}
+                      {m === channel.country?.[0] && flagOf(m) && (
+                        <img className="flag" src={flagOf(m)} alt="" width="16" height="12" />
+                      )}
                       {m}
                     </span>
                   ))}

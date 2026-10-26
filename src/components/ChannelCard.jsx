@@ -43,7 +43,7 @@ function ChannelCard({ channel, onPlay, favorite, onToggleFavorite, health = 'un
         </span>
         <span className="card-meta">
           <span className="card-name">{channel.name}</span>
-          <span className="card-sub">{flag && <span className="flag">{flag}</span>}{sub}</span>
+          <span className="card-sub">{flag && <img className="flag" src={flag} alt="" loading="lazy" width="16" height="12" />}{sub}</span>
         </span>
       </button>
 

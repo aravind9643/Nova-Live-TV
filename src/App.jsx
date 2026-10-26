@@ -106,7 +106,7 @@ export default function App() {
   useEffect(() => {
     if (!playParam || playing || !channels.length) return;
     const found = [...channels, ...favorites, ...recent].find((c) => channelKey(c) === playParam);
-    if (found) { setPlaying(found); pushRecent(found); }
+    if (found) { playingRef.current = found; setPlaying(found); pushRecent(found); }
   }, [playParam, channels, favorites, recent, playing, pushRecent]);
 
   // Per-view title, description and canonical URL. Single-facet views live at
@@ -155,17 +155,19 @@ export default function App() {
   // ---- actions -------------------------------------------------------------
   // Tracks whether opening the player pushed a history entry we still owe a pop.
   const pushedEntry = useRef(false);
+  // Mirrors `playing` synchronously so play() can decide push vs replace
+  // without reading state inside an updater.
+  const playingRef = useRef(null);
 
   const play = useCallback((c) => {
-    setPlaying((prev) => {
-      // Opening the player from the grid adds ONE history entry, so Back returns
-      // to the channel list. Zapping between channels replaces it, so Back
-      // doesn't have to unwind every channel you flicked through.
-      const shouldPush = !prev;
-      if (shouldPush) pushedEntry.current = true;
-      update({ play: channelKey(c) }, { push: shouldPush });
-      return c;
-    });
+    // Opening the player from the grid adds ONE history entry, so Back returns
+    // to the channel list. Zapping between channels replaces it, so Back
+    // doesn't have to unwind every channel you flicked through.
+    const shouldPush = !playingRef.current;
+    if (shouldPush) pushedEntry.current = true;
+    playingRef.current = c;
+    setPlaying(c);
+    update({ play: channelKey(c) }, { push: shouldPush });
     pushRecent(c);                    // the watch screen's rail reads this
     if (query.trim()) setRecentSearches(pushRecentSearch(query));
   }, [update, query, pushRecent]);
@@ -178,6 +180,7 @@ export default function App() {
       window.history.back();
     } else {
       // Arrived via a deep link — no entry of ours to pop.
+      playingRef.current = null;
       setPlaying(null);
       update({ play: null });
     }
@@ -188,6 +191,7 @@ export default function App() {
   useEffect(() => {
     if (!playParam && playing) {
       pushedEntry.current = false; // the entry was consumed by the Back press
+      playingRef.current = null;
       setPlaying(null);
     }
   }, [playParam, playing]);

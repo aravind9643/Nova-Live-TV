@@ -675,7 +675,10 @@ kbd {
 }
 
 /* ============================ New components ============================= */
-.flag { margin-right: 5px; font-size: 1.05em; }
+.flag {
+  display: inline-block; width: 16px; height: 12px; margin-right: 6px; vertical-align: -1px;
+  border-radius: 2px; object-fit: cover; box-shadow: 0 0 0 1px var(--border);
+}
 
 .sort {
   position: relative; display: inline-flex; align-items: center; gap: 6px; justify-self: start;

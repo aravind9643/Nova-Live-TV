@@ -118,7 +118,9 @@ export default function FilterPanel({
                           >
                             <span className="check">{on && <Check size={12} strokeWidth={3} />}</span>
                             <span className="facet-name">
-                              {facet === 'country' && flagOf(v.name) && <span className="flag">{flagOf(v.name)}</span>}
+                              {facet === 'country' && flagOf(v.name) && (
+                                <img className="flag" src={flagOf(v.name)} alt="" loading="lazy" width="16" height="12" />
+                              )}
                               {v.name}
                             </span>
                             <em>{v.count.toLocaleString()}</em>

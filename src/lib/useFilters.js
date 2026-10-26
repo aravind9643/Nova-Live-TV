@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // Combined, multi-axis filter state, serialized to the URL.
 //
@@ -71,11 +71,23 @@ function toUrl({ selected, query, view, sort, play }) {
 
 export function useFilters() {
   const [state, setState] = useState(parse);
+  // The latest state, readable synchronously. History writes happen here, never
+  // inside a setState updater — React may run updaters twice (StrictMode) or
+  // later than expected, which let the URL and the app drift apart.
+  const stateRef = useRef(state);
+  const apply = useCallback((next, push = false) => {
+    stateRef.current = next;
+    window.history[push ? 'pushState' : 'replaceState'](null, '', toUrl(next));
+    setState(next);
+  }, []);
 
   useEffect(() => {
     // `popstate` covers Back/Forward (including the Android hardware button);
     // `hashchange` covers a manually edited hash. Both just re-read the URL.
-    const sync = () => setState(parse());
+    const sync = () => {
+      stateRef.current = parse();
+      setState(stateRef.current);
+    };
     window.addEventListener('popstate', sync);
     window.addEventListener('hashchange', sync);
     return () => {
@@ -84,39 +96,29 @@ export function useFilters() {
     };
   }, []);
 
-  const commit = useCallback((next) => {
-    window.history.replaceState(null, '', toUrl(next));
-    setState(next);
-  }, []);
+  const commit = useCallback((next) => apply(next), [apply]);
 
   // `push: true` creates a real history entry so the browser/Android Back
   // button can return to the previous state (used when opening the player)
   // instead of leaving the app entirely.
   const update = useCallback((patch, { push = false } = {}) => {
-    setState((prev) => {
-      const next = { ...prev, ...patch };
-      window.history[push ? 'pushState' : 'replaceState'](null, '', toUrl(next));
-      return next;
-    });
-  }, []);
+    apply({ ...stateRef.current, ...patch }, push);
+  }, [apply]);
 
   // Add/remove a single facet value.
   const toggleFacet = useCallback((facet, value) => {
-    setState((prev) => {
-      const cur = prev.selected[facet] || [];
-      const has = cur.includes(value);
-      const next = {
-        ...prev,
-        view: VIEW_ALL, // choosing a facet leaves favorites/recent
-        selected: {
-          ...prev.selected,
-          [facet]: has ? cur.filter((v) => v !== value) : [...cur, value],
-        },
-      };
-      window.history.replaceState(null, '', toUrl(next));
-      return next;
+    const prev = stateRef.current;
+    const cur = prev.selected[facet] || [];
+    const has = cur.includes(value);
+    apply({
+      ...prev,
+      view: VIEW_ALL, // choosing a facet leaves favorites/recent
+      selected: {
+        ...prev.selected,
+        [facet]: has ? cur.filter((v) => v !== value) : [...cur, value],
+      },
     });
-  }, []);
+  }, [apply]);
 
   const clearFacets = useCallback(() => {
     update({ selected: EMPTY });
