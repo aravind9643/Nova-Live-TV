@@ -536,6 +536,7 @@ kbd {
 .ad-multiplex { margin-top: var(--s5); min-height: 250px; }
 .ad-player { min-height: 250px; }
 
+.anchor-ad[hidden] { display: none; }
 .anchor-ad {
   position: fixed; left: 0; right: 0; z-index: 40;
   bottom: calc(var(--nav-h) + var(--safe-b)); /* sits above the bottom nav */

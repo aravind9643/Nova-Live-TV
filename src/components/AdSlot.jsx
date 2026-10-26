@@ -12,13 +12,13 @@ const SIZE = {
   player2: 250,
 };
 
-export default function AdSlot({ slot = 'grid', format = 'auto', className = '' }) {
+export default function AdSlot({ slot = 'grid', format = 'auto', className = '', height: heightOverride }) {
   const boxRef = useRef(null);
   const insRef = useRef(null);
   const pushed = useRef(false);
   const [state, setState] = useState('idle'); // idle | live | unfilled
 
-  const height = SIZE[slot] ?? 200;
+  const height = heightOverride ?? SIZE[slot] ?? 200;
 
   useEffect(() => {
     if (!ADS_ENABLED || !HAS_REAL_PUBLISHER || pushed.current) return;

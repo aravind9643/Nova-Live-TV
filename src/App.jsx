@@ -11,7 +11,7 @@ import { usePrefs } from './lib/usePrefs';
 import { logoSrc, onLogoError } from './lib/img';
 import { slugOf } from './lib/slug';
 import { useI18n } from './lib/i18n';
-import { useOnline, useInstallPrompt } from './lib/useDevice';
+import { useOnline, useInstallPrompt, useMediaQuery, DESKTOP_QUERY } from './lib/useDevice';
 import { favoritesLink, decodeFavorites, readImportToken } from './lib/shareList';
 import { useStreamHealth } from './lib/useStreamHealth';
 import { useScrollMemory } from './lib/useScrollMemory';
@@ -46,6 +46,7 @@ export default function App() {
   const { favorites, recent, isFavorite, toggleFavorite, addFavorites, pushRecent } = useLibrary();
   const online = useOnline();
   const install = useInstallPrompt();
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const { report, statusOf } = useStreamHealth();
   // Dead = failed for this viewer recently, or (with no local history) found
   // unreachable by the nightly build-time health check.
@@ -569,7 +570,15 @@ export default function App() {
             )}
 
             {/* Same position in both states, so the ad isn't re-requested. */}
-            {status !== 'error' && <AdSlot slot="grid" format="fluid" className="ad-grid" />}
+            {/* Phones get a compact banner so channels, not an ad, fill the first screen. */}
+            {status !== 'error' && (
+              <AdSlot
+                slot="grid"
+                format={isDesktop ? 'fluid' : 'horizontal'}
+                height={isDesktop ? undefined : 100}
+                className="ad-grid"
+              />
+            )}
 
             {status === 'loading' && (
               <div className="grid" aria-hidden>
@@ -648,7 +657,7 @@ export default function App() {
           />
         )}
 
-        <AnchorAd />
+        <AnchorAd hidden={menuOpen || !!mini} scrollRef={mainRef} />
       </div>
       {host}
       <Toast toast={toast} onDone={clearToast} />

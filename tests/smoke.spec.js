@@ -116,3 +116,19 @@ test('switching language translates the interface and is remembered', async ({ p
   await page.reload();
   await expect(page.getByLabel('Buscar canales')).toBeVisible();
 });
+
+test('ads stay out of the way on phones', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'phone layout');
+  // Compact banner above the grid — channels fill the first screen, not the ad.
+  const top = await page.locator('.ad-grid').boundingBox();
+  expect(top.height).toBeLessThanOrEqual(110);
+  // Watch screen: the ad comes after "Up next", never between video and queue.
+  await firstCard(page).click();
+  await expect(page.locator('.queue')).toBeVisible();
+  const order = await page.evaluate(() => {
+    const queue = document.querySelector('.queue');
+    const ad = document.querySelector('.watch .ad-slot');
+    return queue.compareDocumentPosition(ad) & Node.DOCUMENT_POSITION_FOLLOWING ? 'after' : 'before';
+  });
+  expect(order).toBe('after');
+});
