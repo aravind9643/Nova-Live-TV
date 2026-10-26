@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-// Combined, multi-axis filter state, serialized to the URL hash.
+// Combined, multi-axis filter state, serialized to the URL.
 //
-// Replaces the old single-axis model (`axis=country&group=X`) — you can now
-// stack Category + Country + Language at once, e.g.
-//   #category=Sports&language=English&q=cricket
+// A single facet value gets a real, crawlable path — /category/Sports,
+// /country/India — which is what search engines index. Everything else
+// (multi-select, search, sort, the playing channel) rides in the hash:
+//   /category/Sports#language=English&q=cricket
 // Special views (favorites / recent) live under `view`.
 //
 // Everything is in the URL so any state is shareable and survives reload.
@@ -13,7 +14,15 @@ export const VIEW_ALL = 'all';
 export const VIEW_FAVORITES = 'favorites';
 export const VIEW_RECENT = 'recent';
 
+export const SORTS = {
+  popular: 'Popular',
+  az: 'A–Z',
+  hd: 'HD first',
+  works: 'Works for me',
+};
+
 const FACET_KEYS = ['category', 'country', 'language'];
+const EMPTY = { category: [], country: [], language: [] };
 
 function parse() {
   const p = new URLSearchParams(window.location.hash.replace(/^#/, ''));
@@ -22,24 +31,42 @@ function parse() {
     const raw = p.get(k);
     sel[k] = raw ? raw.split('~').map(decodeURIComponent).filter(Boolean) : [];
   }
+  const m = window.location.pathname.match(/^\/(category|country|language)\/([^/]+)\/?$/);
+  if (m) {
+    const value = decodeURIComponent(m[2]);
+    if (!sel[m[1]].includes(value)) sel[m[1]].unshift(value);
+  }
   return {
     selected: sel,
-    query: p.get('q') ? decodeURIComponent(p.get('q')) : '',
+    // `?q=` is the sitelinks-search-box entry point; the app itself keeps q in the hash.
+    query: p.get('q') ? decodeURIComponent(p.get('q')) : new URLSearchParams(window.location.search).get('q') || '',
     view: p.get('view') || VIEW_ALL,
+    sort: SORTS[p.get('sort')] ? p.get('sort') : 'popular',
     play: p.get('play') ? decodeURIComponent(p.get('play')) : null,
   };
 }
 
-function serialize({ selected, query, view, play }) {
+// Returns the full URL (path + hash) for a state.
+function toUrl({ selected, query, view, sort, play }) {
+  const chips = FACET_KEYS.flatMap((k) => (selected[k] || []).map((v) => [k, v]));
+  const usePath = chips.length === 1 && (!view || view === VIEW_ALL);
+  const path = usePath ? `/${chips[0][0]}/${encodeURIComponent(chips[0][1])}` : '/';
+
   const p = new URLSearchParams();
-  for (const k of FACET_KEYS) {
-    if (selected[k]?.length) p.set(k, selected[k].map(encodeURIComponent).join('~'));
+  if (!usePath) {
+    for (const k of FACET_KEYS) {
+      if (selected[k]?.length) p.set(k, selected[k].map(encodeURIComponent).join('~'));
+    }
   }
   if (query) p.set('q', encodeURIComponent(query));
   if (view && view !== VIEW_ALL) p.set('view', view);
+  if (sort && sort !== 'popular') p.set('sort', sort);
   if (play) p.set('play', encodeURIComponent(play));
   const s = p.toString();
-  return s ? `#${s}` : '';
+  const search = new URLSearchParams(window.location.search);
+  search.delete('q');
+  const qs = search.toString();
+  return `${path}${qs ? `?${qs}` : ''}${s ? `#${s}` : ''}`;
 }
 
 export function useFilters() {
@@ -58,9 +85,7 @@ export function useFilters() {
   }, []);
 
   const commit = useCallback((next) => {
-    const hash = serialize(next);
-    const url = `${window.location.pathname}${window.location.search}${hash}`;
-    window.history.replaceState(null, '', url || window.location.pathname);
+    window.history.replaceState(null, '', toUrl(next));
     setState(next);
   }, []);
 
@@ -70,10 +95,7 @@ export function useFilters() {
   const update = useCallback((patch, { push = false } = {}) => {
     setState((prev) => {
       const next = { ...prev, ...patch };
-      const hash = serialize(next);
-      const url = `${window.location.pathname}${window.location.search}${hash}`;
-      const method = push ? 'pushState' : 'replaceState';
-      window.history[method](null, '', url || window.location.pathname);
+      window.history[push ? 'pushState' : 'replaceState'](null, '', toUrl(next));
       return next;
     });
   }, []);
@@ -91,14 +113,13 @@ export function useFilters() {
           [facet]: has ? cur.filter((v) => v !== value) : [...cur, value],
         },
       };
-      const hash = serialize(next);
-      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${hash}` || window.location.pathname);
+      window.history.replaceState(null, '', toUrl(next));
       return next;
     });
   }, []);
 
   const clearFacets = useCallback(() => {
-    update({ selected: { category: [], country: [], language: [] } });
+    update({ selected: EMPTY });
   }, [update]);
 
   // Flat list of active chips for the filter bar.

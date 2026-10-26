@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { tap } from './haptics';
 
 // Persists favorites + recently-watched to localStorage. Channels come and go on
@@ -36,10 +36,9 @@ export function useLibrary() {
   useEffect(() => save(FAV_KEY, favorites), [favorites]);
   useEffect(() => save(RECENT_KEY, recent), [recent]);
 
-  const isFavorite = useCallback(
-    (c) => favorites.some((f) => channelKey(f) === channelKey(c)),
-    [favorites]
-  );
+  // O(1) lookup — every visible card asks on every grid render.
+  const favKeys = useMemo(() => new Set(favorites.map(channelKey)), [favorites]);
+  const isFavorite = useCallback((c) => favKeys.has(channelKey(c)), [favKeys]);
 
   const toggleFavorite = useCallback((c) => {
     tap();

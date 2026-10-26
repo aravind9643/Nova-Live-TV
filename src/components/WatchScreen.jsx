@@ -1,99 +1,160 @@
-import { Suspense, lazy } from 'react';
-import { ArrowLeft, Star, Radio, History, Play, Loader2 } from 'lucide-react';
+import { Suspense, lazy, useState } from 'react';
+import {
+  ArrowLeft, Star, Radio, History, Play, Loader2, Share2, Check, ListVideo, AlertTriangle,
+} from 'lucide-react';
 import { channelKey } from '../lib/useLibrary';
 import AdSlot from './AdSlot';
+import { logoSrc, onLogoError } from '../lib/img';
+import { flagOf } from '../lib/flags';
 
 const Player = lazy(() => import('./Player'));
 
-// A dedicated "watch" screen: the video plus a rail of recently-watched
-// channels underneath, so zapping doesn't mean going back to the grid.
+function Thumb({ channel, size = 22 }) {
+  return (
+    <span className="thumb">
+      {channel.logo
+        ? <img src={logoSrc(channel.logo, 96)} alt="" loading="lazy" decoding="async" width="96" height="60" onError={(e) => onLogoError(e, channel.logo)} />
+        : <Radio size={size} />}
+    </span>
+  );
+}
+
+// A dedicated "watch" screen. Phones: video pinned on top, details and lists
+// scroll underneath. Desktop: video + details on the left, a queue on the right.
 export default function WatchScreen({
-  channel, recent, onBack, onPrev, onNext, onPlay,
+  channel, recent, upNext = [], onBack, onPrev, onNext, onPlay,
   favorite, onToggleFavorite, onHealth, statusOf,
 }) {
+  const [shared, setShared] = useState(false);
   // Don't show the channel you're already watching in the rail.
   const rail = recent.filter((c) => channelKey(c) !== channelKey(channel));
+  const health = (c) => (statusOf ? statusOf(c.url) : 'unknown');
+
+  const share = async () => {
+    const data = { title: `${channel.name} · NOVA Live TV`, url: window.location.href };
+    try {
+      if (navigator.share) await navigator.share(data);
+      else {
+        await navigator.clipboard.writeText(data.url);
+        setShared(true);
+        setTimeout(() => setShared(false), 1800);
+      }
+    } catch { /* dismissed */ }
+  };
+
+  const meta = [channel.primary, channel.country?.[0], channel.language?.[0]]
+    .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
 
   return (
     <div className="watch">
       <header className="watch-bar">
-        <button className="watch-back" onClick={onBack} aria-label="Back to channels">
-          <ArrowLeft size={20} />
+        <button className="icon-btn" onClick={onBack} aria-label="Back to channels">
+          <ArrowLeft size={22} />
         </button>
-        <div className="watch-heading">
-          <div className="watch-name">{channel.name}</div>
-          <div className="watch-sub">
-            <span className="live-dot" /> LIVE · {channel.primary}
-            {channel.quality && <span className="q-tag">{channel.quality}</span>}
-          </div>
-        </div>
-        <button
-          className={`watch-fav ${favorite ? 'on' : ''}`}
-          onClick={() => onToggleFavorite(channel)}
-          aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'}
-          aria-pressed={favorite}
-        >
-          <Star size={20} fill={favorite ? 'currentColor' : 'none'} />
-        </button>
+        <span className="watch-bar-title">{channel.name}</span>
       </header>
 
-      <Suspense fallback={
-        <div className="stage stage-fallback">
-          <div className="stage-state">
-            <Loader2 className="spin" size={34} />
-            <span>Starting player…</span>
+      <div className="watch-layout">
+        <div className="watch-primary">
+          <div className="stage-wrap">
+            <Suspense fallback={
+              <div className="stage">
+                <div className="stage-state">
+                  <Loader2 className="spin" size={34} />
+                  <span>Starting player…</span>
+                </div>
+              </div>
+            }>
+              <Player channel={channel} onPrev={onPrev} onNext={onNext} onHealth={onHealth} onBack={onBack} />
+            </Suspense>
           </div>
+
+          <section className="watch-info">
+            <div className="watch-id">
+              <Thumb channel={channel} size={26} />
+              <div className="watch-title">
+                <h1>{channel.name}</h1>
+                <div className="watch-meta">
+                  <span className="live-badge"><span className="live-dot" /> LIVE</span>
+                  {channel.quality && <span className="tag">{channel.quality}</span>}
+                  {meta.map((m) => (
+                    <span key={m} className="meta-item">
+                      {m === channel.country?.[0] && flagOf(m) && <span className="flag">{flagOf(m)}</span>}
+                      {m}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="watch-actions">
+              <button
+                className={`btn ${favorite ? 'fav-on' : ''}`}
+                onClick={() => onToggleFavorite(channel)}
+                aria-pressed={favorite}
+              >
+                <Star size={17} fill={favorite ? 'currentColor' : 'none'} />
+                {favorite ? 'Saved' : 'Favorite'}
+              </button>
+              <button className="btn" onClick={share}>
+                {shared ? <Check size={17} /> : <Share2 size={17} />} {shared ? 'Link copied' : 'Share'}
+              </button>
+            </div>
+            <p className="watch-tip">
+              Swipe the video to change channel · <kbd>←</kbd> <kbd>→</kbd> zap · <kbd>F</kbd> fullscreen · <kbd>M</kbd> mute · <kbd>P</kbd> picture-in-picture · swipe down to close
+            </p>
+          </section>
+
+          <AdSlot slot="player" format="auto" className="ad-player" />
         </div>
-      }>
-        <Player
-          channel={channel}
-          onPrev={onPrev}
-          onNext={onNext}
-          onHealth={onHealth}
-          onBack={onBack}
-        />
-      </Suspense>
 
-      <div className="watch-body">
-        <AdSlot slot="player" format="auto" className="ad-player" />
-
-        {rail.length > 0 ? (
-          <section className="rail-section">
-            <h2 className="rail-title"><History size={15} /> Recently watched</h2>
-            <div className="rail">
-              {rail.map((c) => {
-                const health = statusOf ? statusOf(c.url) : 'unknown';
-                return (
+        <aside className="watch-side">
+          {rail.length > 0 && (
+            <section className="side-section">
+              <h2 className="side-title"><History size={16} /> Recently watched</h2>
+              <div className="rail">
+                {rail.map((c) => (
                   <button
                     key={channelKey(c)}
-                    className={`rail-item ${health === 'bad' ? 'is-dead' : ''}`}
+                    className={`rail-item ${health(c) === 'bad' ? 'is-dead' : ''}`}
                     onClick={() => onPlay(c)}
                     title={c.name}
                   >
                     <span className="rail-thumb">
-                      {c.logo
-                        ? <img src={c.logo} alt="" loading="lazy" decoding="async" width="120" height="72" />
-                        : <Radio size={20} />}
-                      <span className="rail-play"><Play size={16} fill="currentColor" /></span>
+                      <Thumb channel={c} />
+                      <span className="rail-play"><Play size={14} fill="currentColor" /></span>
                     </span>
                     <span className="rail-name">{c.name}</span>
                   </button>
-                );
-              })}
-            </div>
-          </section>
-        ) : (
-          <p className="watch-hint">
-            Channels you watch will appear here for quick access.
-          </p>
-        )}
+                ))}
+              </div>
+            </section>
+          )}
 
-        <p className="watch-tip">
-          Swipe the video left or right to change channel · <kbd>←</kbd> <kbd>→</kbd> to zap ·
-          {' '}<kbd>F</kbd> fullscreen · <kbd>M</kbd> mute
-        </p>
-
-        <AdSlot slot="player2" format="auto" className="ad-player" />
+          {upNext.length > 0 && (
+            <section className="side-section">
+              <h2 className="side-title"><ListVideo size={16} /> Up next</h2>
+              <div className="queue">
+                {upNext.map((c) => (
+                  <button
+                    key={channelKey(c)}
+                    className={`queue-item ${health(c) === 'bad' ? 'is-dead' : ''}`}
+                    onClick={() => onPlay(c)}
+                  >
+                    <Thumb channel={c} />
+                    <span className="queue-text">
+                      <span className="queue-name">{c.name}</span>
+                      <span className="queue-sub">
+                        {health(c) === 'bad' && <AlertTriangle size={11} />}
+                        {c.primary}{c.quality ? ` · ${c.quality}` : ''}
+                      </span>
+                    </span>
+                    <Play size={16} className="queue-go" />
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+        </aside>
       </div>
     </div>
   );

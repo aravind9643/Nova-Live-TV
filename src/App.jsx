@@ -1,41 +1,58 @@
 import { useMemo, useState, useDeferredValue, useCallback, useEffect, useRef } from 'react';
 import {
-  Search, Tv, WifiOff, Star, History, Menu, X, Globe, SlidersHorizontal,
-  Clock, RotateCcw, Check, ChevronDown,
+  Search, Tv, WifiOff, Star, History, X, Home, SlidersHorizontal, Clock, RotateCcw,
+  Sun, Moon, Monitor, Play, ArrowUpDown,
 } from 'lucide-react';
-import { useCatalogue, FACETS } from './lib/useCatalogue';
+import { useCatalogue } from './lib/useCatalogue';
 import { useLibrary, channelKey } from './lib/useLibrary';
-import { useFilters, VIEW_ALL, VIEW_FAVORITES, VIEW_RECENT } from './lib/useFilters';
+import { useFilters, VIEW_ALL, VIEW_FAVORITES, VIEW_RECENT, SORTS } from './lib/useFilters';
+import { useAdGuard } from './lib/useAdGuard';
+import { usePrefs } from './lib/usePrefs';
+import { logoSrc, onLogoError } from './lib/img';
 import { useStreamHealth } from './lib/useStreamHealth';
 import { useScrollMemory } from './lib/useScrollMemory';
 import { searchChannels, loadRecentSearches, pushRecentSearch } from './lib/search';
 import VirtualGrid from './components/VirtualGrid';
+import FilterPanel from './components/FilterPanel';
 import AdSlot from './components/AdSlot';
 import AnchorAd from './components/AnchorAd';
 import MultiplexAd from './components/MultiplexAd';
 import WatchScreen from './components/WatchScreen';
+import Toast from './components/Toast';
 
-// How many values to show per facet before "show all".
-const FACET_PREVIEW = 12;
+// Quick-pick categories shown as a scrollable chip row above the grid.
+const QUICK_CHIPS = 12;
+// How many channels the watch screen lists under "Up next".
+const UP_NEXT = 12;
+const SITE = 'https://nova-live-tv.vercel.app';
+const THEMES = { system: Monitor, dark: Moon, light: Sun };
+const NEXT_THEME = { system: 'dark', dark: 'light', light: 'system' };
+
+const HD = /^(4k|2160p|1080[pi]|720p)$/i;
+
+function setMeta(name, content, attr = 'name') {
+  const el = document.querySelector(`meta[${attr}="${name}"]`);
+  if (el) el.setAttribute('content', content);
+}
 
 export default function App() {
   const { status, channels, facets, stale, enriching } = useCatalogue();
   const { favorites, recent, isFavorite, toggleFavorite, pushRecent } = useLibrary();
   const { report, statusOf, isBad } = useStreamHealth();
+  const { prefs, setPref } = usePrefs();
   const {
-    selected, query, view, play: playParam,
+    selected, query, view, sort, play: playParam,
     update, toggleFacet, clearFacets, activeChips,
   } = useFilters();
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [facetFilter, setFacetFilter] = useState('');
-  const [expanded, setExpanded] = useState({});
-  const [collapsedFacets, setCollapsedFacets] = useState({});
   const [playing, setPlaying] = useState(null);
   const [recentSearches, setRecentSearches] = useState(loadRecentSearches);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [toast, setToast] = useState(null);
 
   const mainRef = useRef(null);
+  const searchRef = useRef(null);
 
   // Search runs over ~14k channels, so debounce the *expensive* path while the
   // input itself stays instant. useDeferredValue alone still re-scores on every
@@ -60,20 +77,28 @@ export default function App() {
     );
   }, [base, selected, view]);
 
-  // 3) rank by search relevance, then sink known-dead streams to the bottom
+  // 3) rank by search relevance (or the chosen sort), then sink — or hide —
+  //    known-dead streams
   const results = useMemo(() => {
-    const found = searchChannels(facetFiltered, deferredQuery);
+    let found = searchChannels(facetFiltered, deferredQuery);
     if (!found.length) return found;
+    if (sort === 'az') found = [...found].sort((a, b) => a.name.localeCompare(b.name));
+    else if (sort === 'hd') found = [...found].sort((a, b) => HD.test(b.quality || '') - HD.test(a.quality || ''));
+    else if (sort === 'works') {
+      const rank = { good: 0, unknown: 1, bad: 2 };
+      found = [...found].sort((a, b) => rank[statusOf(a.url)] - rank[statusOf(b.url)]);
+    }
     const live = [];
     const dead = [];
     for (const c of found) (isBad(c.url) ? dead : live).push(c);
+    if (prefs.hideDead) return live;
     return dead.length ? [...live, ...dead] : found;
-  }, [facetFiltered, deferredQuery, isBad]);
+  }, [facetFiltered, deferredQuery, isBad, statusOf, sort, prefs.hideDead]);
 
   // Restore scroll per distinct view.
   const viewKey = useMemo(
-    () => `${view}|${JSON.stringify(selected)}|${deferredQuery}`,
-    [view, selected, deferredQuery]
+    () => `${view}|${JSON.stringify(selected)}|${deferredQuery}|${sort}`,
+    [view, selected, deferredQuery, sort]
   );
   useScrollMemory(mainRef, viewKey, status === 'ready');
 
@@ -84,108 +109,32 @@ export default function App() {
     if (found) { setPlaying(found); pushRecent(found); }
   }, [playParam, channels, favorites, recent, playing, pushRecent]);
 
-  // Dynamic SEO title updates for search engines and user browser history
+  // Per-view title, description and canonical URL. Single-facet views live at
+  // real paths (/category/Sports), so each is its own indexable page.
   useEffect(() => {
+    let title = 'NOVA Live TV · Watch 13,000+ Free Live TV Channels Online';
+    let desc = 'Watch over 13,000 free live TV channels from around the world. Stream news, sports, movies, music and more in HD — no sign-up.';
     if (playing) {
-      document.title = `Watch ${playing.name} Live Stream · NOVA Live TV`;
+      title = `Watch ${playing.name} Live Stream · NOVA Live TV`;
+      desc = `Watch ${playing.name} live and free online${playing.primary ? ` — ${playing.primary}` : ''}${playing.country?.[0] ? ` from ${playing.country[0]}` : ''}. No sign-up.`;
     } else if (query.trim()) {
-      document.title = `Search "${query}" Live TV Channels · NOVA Live TV`;
+      title = `Search "${query}" Live TV Channels · NOVA Live TV`;
     } else if (activeChips.length > 0) {
-      const filterSummary = activeChips.map((c) => c.value).join(', ');
-      document.title = `${filterSummary} Channels · NOVA Live TV`;
-    } else {
-      document.title = 'NOVA Live TV · Watch 13,000+ Free Live TV Channels Online';
+      const summary = activeChips.map((c) => c.value).join(', ');
+      title = `${summary} Live TV Channels · Watch Free · NOVA Live TV`;
+      desc = `Watch free ${summary} live TV channels online in HD. Browse ${results.length.toLocaleString()} streams on NOVA Live TV.`;
     }
-  }, [playing, query, activeChips]);
+    document.title = title;
+    setMeta('description', desc);
+    setMeta('og:title', title, 'property');
+    setMeta('og:description', desc, 'property');
+    setMeta('twitter:title', title);
+    setMeta('twitter:description', desc);
+    const canonical = document.querySelector('link[rel="canonical"]');
+    if (canonical) canonical.href = `${SITE}${window.location.pathname}`;
+  }, [playing, query, activeChips, results.length]);
 
-  useEffect(() => {
-    document.body.style.overflow = menuOpen ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
-  }, [menuOpen]);
-
-  // AdSense page-level ads stamp `height: auto !important` onto #root/.app,
-  // which breaks the viewport height chain: .main then grows to the virtual
-  // list's full spacer height (100k+ px), so it can't scroll and the virtualiser
-  // renders every card.
-  //
-  // The targets must be re-resolved on every pass: switching to the watch screen
-  // unmounts `.app` entirely, so a node captured at mount time goes stale and the
-  // NEW `.app` ends up unguarded — which is why scrolling broke after Back.
-  useEffect(() => {
-    const strip = () => {
-      const targets = [
-        document.getElementById('root'),
-        document.querySelector('.app'),
-        document.querySelector('.watch'),
-      ];
-      for (const el of targets) {
-        if (!el) continue;
-        if (el.style.getPropertyValue('height')) el.style.removeProperty('height');
-        if (el.style.getPropertyValue('min-height')) el.style.removeProperty('min-height');
-        if (el.style.getPropertyValue('max-height')) el.style.removeProperty('max-height');
-      }
-    };
-    strip();
-
-    // Observe the whole document so newly-mounted screens are covered too.
-    const mo = new MutationObserver(strip);
-    mo.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style'],
-      subtree: true,
-      childList: true,
-    });
-    return () => mo.disconnect();
-  }, []);
-
-  // Auto Ads inject floating units we never asked for — side rails, vignettes
-  // and top-docked anchors — which land on top of the channel grid and the
-  // header. Our own <AdSlot>s live inside `.ad-slot` in the normal document
-  // flow, so anything floating OUTSIDE one of those is fair game:
-  //   • a top-docked anchor gets moved to the bottom (still monetises)
-  //   • a free-floating overlay over the content is removed outright
-  useEffect(() => {
-    const tame = () => {
-      const nodes = document.querySelectorAll(
-        'ins.adsbygoogle, iframe[id^="aswift"], iframe[name^="google_ads"], [id^="google_ads_iframe"]'
-      );
-
-      for (const el of nodes) {
-        // Never touch the units we placed ourselves.
-        if (el.closest('.ad-slot')) continue;
-
-        const host = el.closest('ins, div') || el;
-        const cs = getComputedStyle(host);
-        if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
-
-        const r = host.getBoundingClientRect();
-        if (r.width < 40 || r.height < 40) continue;
-
-        const isAnchor = host.classList.contains('adsbygoogle-noablate');
-        const nearTop = r.top < 90;
-        const nearBottom = r.bottom > window.innerHeight - 90;
-
-        if (isAnchor && nearBottom && !nearTop) continue; // bottom anchor is fine
-
-        if (isAnchor && nearTop) {
-          host.style.setProperty('top', 'auto', 'important');
-          host.style.setProperty('bottom', '0', 'important');
-          continue;
-        }
-
-        // A floating panel sitting over the content — hide it.
-        host.style.setProperty('display', 'none', 'important');
-      }
-    };
-
-    tame();
-    const mo = new MutationObserver(tame);
-    mo.observe(document.documentElement, {
-      childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'],
-    });
-    const iv = setInterval(tame, 1500);
-    return () => { mo.disconnect(); clearInterval(iv); };
-  }, []);
+  useAdGuard();
 
   // Warm the player chunk (~530kB of hls.js) once the grid is up, so tapping a
   // channel opens a working player instead of a controls-less placeholder.
@@ -195,6 +144,7 @@ export default function App() {
     return () => clearTimeout(id);
   }, [status]);
 
+  // The filter sheet behaves like a modal on phones: Esc closes it.
   useEffect(() => {
     if (!menuOpen) return;
     const onKey = (e) => e.key === 'Escape' && setMenuOpen(false);
@@ -263,290 +213,318 @@ export default function App() {
     setMenuOpen(false);
   }, [update]);
 
-  const chipLabel = (facet, value) => value;
+  // Favorite toggles get a toast with Undo — the star is easy to hit by accident.
+  const toggleFav = useCallback((c) => {
+    const was = isFavorite(c);
+    toggleFavorite(c);
+    setToast({
+      id: Date.now(),
+      message: was ? `Removed ${c.name} from favorites` : `Added ${c.name} to favorites`,
+      action: { label: 'Undo', run: () => toggleFavorite(c) },
+    });
+  }, [isFavorite, toggleFavorite]);
+  const clearToast = useCallback(() => setToast(null), []);
+
+  const goHome = useCallback(() => {
+    update({ view: VIEW_ALL, query: '', selected: { category: [], country: [], language: [] } });
+    setMenuOpen(false);
+    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [update]);
+
+  // The channels after the current one in the active list — what zapping visits.
+  const upNext = useMemo(() => {
+    if (!playing || results.length < 2) return [];
+    const i = Math.max(0, results.findIndex((c) => channelKey(c) === channelKey(playing)));
+    const out = [];
+    for (let s = 1; s <= Math.min(UP_NEXT, results.length - 1); s++) {
+      out.push(results[(i + s) % results.length]);
+    }
+    return out;
+  }, [playing, results]);
 
   // ---- render --------------------------------------------------------------
   const showSearchSuggestions = searchFocused && !query && recentSearches.length > 0;
+  const quickCats = facets.category.slice(0, QUICK_CHIPS);
+  const activeCats = selected.category || [];
+  const heading = view === VIEW_FAVORITES ? 'Favorites'
+    : view === VIEW_RECENT ? 'Recently watched'
+    : query.trim() ? `Results for “${query.trim()}”`
+    : activeChips.length ? activeChips.map((c) => c.value).join(' · ')
+    : 'All channels';
+  const isHome = view === VIEW_ALL && !query && !activeChips.length;
+  const resume = isHome ? recent[0] : null;
+  const ThemeIcon = THEMES[prefs.theme] || Monitor;
 
   // Watching is a distinct screen, not an overlay — the browse UI unmounts so
   // nothing renders behind the video (and the grid can't steal scroll/GPU).
   if (playing) {
     return (
-      <WatchScreen
-        channel={playing}
-        recent={recent}
-        onBack={closePlayer}
-        onPrev={results.length > 1 ? () => zap(-1) : undefined}
-        onNext={results.length > 1 ? () => zap(1) : undefined}
-        onPlay={play}
-        favorite={isFavorite(playing)}
-        onToggleFavorite={toggleFavorite}
-        onHealth={report}
-        statusOf={statusOf}
-      />
+      <>
+        <WatchScreen
+          channel={playing}
+          recent={recent}
+          upNext={upNext}
+          onBack={closePlayer}
+          onPrev={results.length > 1 ? () => zap(-1) : undefined}
+          onNext={results.length > 1 ? () => zap(1) : undefined}
+          onPlay={play}
+          favorite={isFavorite(playing)}
+          onToggleFavorite={toggleFav}
+          onHealth={report}
+          statusOf={statusOf}
+        />
+        <Toast toast={toast} onDone={clearToast} />
+      </>
     );
   }
+
+  const navItems = [
+    { key: 'home', label: 'Home', icon: Home, active: view === VIEW_ALL && !menuOpen, onClick: goHome },
+    { key: 'filters', label: 'Filters', icon: SlidersHorizontal, active: menuOpen, onClick: () => setMenuOpen(true), badge: activeChips.length },
+    { key: 'fav', label: 'Favorites', icon: Star, active: view === VIEW_FAVORITES && !menuOpen, onClick: () => setView(VIEW_FAVORITES), badge: favorites.length },
+    { key: 'recent', label: 'Recent', icon: History, active: view === VIEW_RECENT && !menuOpen, onClick: () => setView(VIEW_RECENT) },
+  ];
 
   return (
     <div className="app">
       {/* ---------------- Header ---------------- */}
-      <header className="appbar">
-        <button className="hamburger" aria-label="Open filters" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}>
-          <Menu size={22} />
-          {activeChips.length > 0 && <span className="hamburger-dot" />}
+      <header className="topbar">
+        <button className="brand" onClick={goHome} aria-label="NOVA Live TV — home">
+          <span className="brand-mark"><Tv size={20} /></span>
+          <span className="brand-name">NOVA<span>Live TV</span></span>
         </button>
 
-        <div className="brand">
-          <span className="brand-mark"><Tv size={22} /></span>
-          <div className="brand-text">
-            <div className="brand-name">NOVA</div>
-            <div className="brand-tag">Live TV</div>
-          </div>
-        </div>
-
-        <div className="search appbar-search">
-          <Search size={18} />
-          <input
-            value={query}
-            onChange={(e) => update({ query: e.target.value })}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setTimeout(() => setSearchFocused(false), 120)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && query.trim()) setRecentSearches(pushRecentSearch(query));
-              if (e.key === 'Escape') update({ query: '' });
-            }}
-            placeholder="Search channels…"
-            aria-label="Search channels"
-          />
-          {query && (
-            <button className="search-clear" aria-label="Clear search" onClick={() => update({ query: '' })}>
-              <X size={16} />
-            </button>
-          )}
+        <div className="search">
+          <label className="field">
+            <Search size={18} />
+            <input
+              ref={searchRef}
+              type="search"
+              enterKeyHint="search"
+              value={query}
+              onChange={(e) => update({ query: e.target.value })}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setTimeout(() => setSearchFocused(false), 120)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && query.trim()) { setRecentSearches(pushRecentSearch(query)); e.currentTarget.blur(); }
+                if (e.key === 'Escape') update({ query: '' });
+              }}
+              placeholder="Search 13,000+ channels"
+              aria-label="Search channels"
+            />
+            {query && (
+              <button className="icon-btn sm" aria-label="Clear search" onClick={() => { update({ query: '' }); searchRef.current?.focus(); }}>
+                <X size={16} />
+              </button>
+            )}
+          </label>
 
           {showSearchSuggestions && (
-            <div className="search-suggest">
+            <div className="suggest pop-in">
               <div className="suggest-head"><Clock size={13} /> Recent searches</div>
               {recentSearches.map((t) => (
                 <button key={t} className="suggest-item" onMouseDown={() => update({ query: t })}>
-                  {t}
+                  <Search size={14} /> {t}
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        <div className="topbar-meta">
-          <span className="live-dot" />
-          <span className="meta-text">
-            {status === 'ready' ? `${results.length.toLocaleString()} channels` : 'Loading…'}
-          </span>
-        </div>
+        <nav className="top-nav" aria-label="Library">
+          <button className={`pill ${view === VIEW_FAVORITES ? 'on' : ''}`} onClick={() => setView(view === VIEW_FAVORITES ? VIEW_ALL : VIEW_FAVORITES)}>
+            <Star size={15} /> Favorites{favorites.length ? <em>{favorites.length}</em> : null}
+          </button>
+          <button className={`pill ${view === VIEW_RECENT ? 'on' : ''}`} onClick={() => setView(view === VIEW_RECENT ? VIEW_ALL : VIEW_RECENT)}>
+            <History size={15} /> Recent
+          </button>
+        </nav>
+
+        <button
+          className="icon-btn theme-btn"
+          onClick={() => setPref('theme', NEXT_THEME[prefs.theme] || 'system')}
+          aria-label={`Theme: ${prefs.theme}. Switch theme`}
+          title={`Theme: ${prefs.theme}`}
+        >
+          <ThemeIcon size={19} />
+        </button>
       </header>
 
-      {/* ---------------- Drawer / sidebar ---------------- */}
-      {menuOpen && <div className="drawer-backdrop" onClick={() => setMenuOpen(false)} />}
-
-      <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
-        <div className="sidebar-head">
-          <span className="sidebar-title"><SlidersHorizontal size={17} /> Filters</span>
-          <button className="drawer-close" aria-label="Close filters" onClick={() => setMenuOpen(false)}>
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="views">
-          <button className={`view-btn ${view === VIEW_ALL && !activeChips.length ? 'active' : ''}`} onClick={() => setView(VIEW_ALL)}>
-            <Globe size={16} /> All
-          </button>
-          <button className={`view-btn ${view === VIEW_FAVORITES ? 'active' : ''}`} onClick={() => setView(VIEW_FAVORITES)} disabled={!favorites.length}>
-            <Star size={16} /> Favorites{favorites.length ? ` (${favorites.length})` : ''}
-          </button>
-          <button className={`view-btn ${view === VIEW_RECENT ? 'active' : ''}`} onClick={() => setView(VIEW_RECENT)} disabled={!recent.length}>
-            <History size={16} /> Recent{recent.length ? ` (${recent.length})` : ''}
-          </button>
-        </div>
-
-        <div className="menu-search">
-          <Search size={16} />
-          <input
-            value={facetFilter}
-            onChange={(e) => setFacetFilter(e.target.value)}
-            placeholder="Filter options…"
-            aria-label="Filter facet options"
-          />
-          {facetFilter && (
-            <button className="search-clear" aria-label="Clear" onClick={() => setFacetFilter('')}><X size={14} /></button>
-          )}
-        </div>
-
-        <div className="facets">
-          {Object.entries(FACETS).map(([facet, { plural }], facetIdx) => {
-            const q = facetFilter.trim().toLowerCase();
-            const all = facets[facet] || [];
-            const active = selected[facet] || [];
-            const matching = q ? all.filter((v) => v.name.toLowerCase().includes(q)) : all;
-            if (!matching.length) return null;
-
-            // Selected values float to the top so they're never lost down a
-            // 188-item list once the section is collapsed to a preview.
-            const ordered = active.length
-              ? [...matching].sort((a, b) => active.includes(b.name) - active.includes(a.name))
-              : matching;
-
-            const collapsed = collapsedFacets[facet];
-            const showAll = expanded[facet] || !!q;
-            const shown = showAll ? ordered : ordered.slice(0, FACET_PREVIEW);
-
-            return (
-              <section key={facet} className={`facet ${collapsed ? 'is-collapsed' : ''}`}>
-                <button
-                  className="facet-head"
-                  onClick={() => setCollapsedFacets((p) => ({ ...p, [facet]: !p[facet] }))}
-                  aria-expanded={!collapsed}
-                >
-                  <ChevronDown size={14} className="facet-caret" />
-                  <span className="facet-title">{plural}</span>
-                  {active.length > 0 && <span className="facet-badge">{active.length}</span>}
-                  <span className="facet-total">{matching.length}</span>
-                </button>
-
-                {!collapsed && (
-                  <>
-                    <div className="facet-list">
-                      {shown.map((v) => {
-                        const on = active.includes(v.name);
-                        return (
-                          <button
-                            key={v.name}
-                            className={`facet-item ${on ? 'on' : ''}`}
-                            onClick={() => toggleFacet(facet, v.name)}
-                            aria-pressed={on}
-                            title={`${v.name} · ${v.count.toLocaleString()} channels`}
-                          >
-                            <span className="facet-check">{on && <Check size={12} strokeWidth={3} />}</span>
-                            <span className="facet-name">{v.name}</span>
-                            <em>{v.count.toLocaleString()}</em>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {!q && ordered.length > FACET_PREVIEW && (
-                      <button
-                        className="facet-more"
-                        onClick={() => setExpanded((p) => ({ ...p, [facet]: !p[facet] }))}
-                      >
-                        {showAll ? 'Show less' : `Show all ${ordered.length.toLocaleString()}`}
-                      </button>
-                    )}
-                  </>
-                )}
-              </section>
-            );
-          })}
-        </div>
-
-        {/* Sidebar ad — desktop only */}
-        <AdSlot slot="sidebar" format="auto" className="ad-sidebar" />
-        <div className="sidebar-foot">Streams by iptv-org · free &amp; open</div>
-      </aside>
+      {/* ---------------- Filters (sheet on phones, sidebar on desktop) ---------------- */}
+      <FilterPanel
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        facets={facets}
+        selected={selected}
+        toggleFacet={toggleFacet}
+        clearFacets={clearFacets}
+        activeCount={activeChips.length}
+        resultCount={results.length}
+        hideDead={prefs.hideDead}
+        onHideDead={(v) => setPref('hideDead', v)}
+      />
 
       {/* ---------------- Main ---------------- */}
       <main className="main" ref={mainRef}>
-        {stale && <div className="stale-note">Showing saved channels — refreshing in the background…</div>}
-        {enriching && (
-          <div className="stale-note">
-            Channels ready — loading country &amp; language filters…
-          </div>
-        )}
-
-        {status === 'loading' && (
-          <div className="grid skeleton-grid" aria-hidden>
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="card skel">
-                <div className="card-thumb skel-box" />
-                <div className="card-meta">
-                  <span className="skel-line" style={{ width: '78%' }} />
-                  <span className="skel-line" style={{ width: '46%' }} />
-                </div>
-              </div>
+        {status === 'ready' && view === VIEW_ALL && quickCats.length > 0 && (
+          <div className="quick" role="toolbar" aria-label="Quick categories">
+            <button className={`chip ${!activeCats.length ? 'on' : ''}`} onClick={() => update({ selected: { ...selected, category: [] } })}>
+              All
+            </button>
+            {quickCats.map((c) => (
+              <button
+                key={c.name}
+                className={`chip ${activeCats.includes(c.name) ? 'on' : ''}`}
+                onClick={() => toggleFacet('category', c.name)}
+                aria-pressed={activeCats.includes(c.name)}
+              >
+                {c.name}
+              </button>
             ))}
           </div>
         )}
 
-        {status === 'error' && (
-          <div className="center-state">
-            <WifiOff size={40} />
-            <p>Couldn't load the channel list. Check your connection and try again.</p>
-            <button className="btn-ghost primary" onClick={() => window.location.reload()}>
-              <RotateCcw size={15} /> Retry
-            </button>
-          </div>
-        )}
+        <div className="content">
+          {(stale || enriching) && (
+            <div className="notice">
+              <span className="live-dot" />
+              {stale ? 'Showing saved channels — refreshing in the background…' : 'Loading country & language filters…'}
+            </div>
+          )}
 
-        {status === 'ready' && (
-          <>
-            {/* Active filter chips */}
-            {(activeChips.length > 0 || view !== VIEW_ALL) && (
-              <div className="chipbar">
-                {view !== VIEW_ALL && (
-                  <span className="chip chip-view">
-                    {view === VIEW_FAVORITES ? <><Star size={13} /> Favorites</> : <><History size={13} /> Recent</>}
-                    <button onClick={() => setView(VIEW_ALL)} aria-label="Clear view"><X size={13} /></button>
-                  </span>
-                )}
-                {activeChips.map(({ facet, value }) => (
-                  <span key={`${facet}:${value}`} className="chip">
-                    {chipLabel(facet, value)}
-                    <button onClick={() => toggleFacet(facet, value)} aria-label={`Remove ${value}`}><X size={13} /></button>
-                  </span>
+          {status === 'loading' && (
+            <>
+              <div className="section-head"><span className="skel-line" style={{ width: 160, height: 22 }} /></div>
+              <div className="grid" aria-hidden>
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="card skel">
+                    <span className="card-thumb skel-box" />
+                    <span className="card-meta">
+                      <span className="skel-line" style={{ width: '78%' }} />
+                      <span className="skel-line" style={{ width: '46%' }} />
+                    </span>
+                  </div>
                 ))}
-                {activeChips.length > 1 && (
-                  <button className="chip chip-clear" onClick={clearFacets}>Clear all</button>
+              </div>
+            </>
+          )}
+
+          {status === 'error' && (
+            <div className="empty">
+              <span className="empty-icon"><WifiOff size={28} /></span>
+              <h2>Can’t reach the channel list</h2>
+              <p>Check your connection and try again.</p>
+              <button className="btn primary" onClick={() => window.location.reload()}>
+                <RotateCcw size={16} /> Retry
+              </button>
+            </div>
+          )}
+
+          {status === 'ready' && (
+            <>
+              {resume && (
+                <button className="resume" onClick={() => play(resume)}>
+                  <span className="resume-thumb">
+                    {resume.logo
+                      ? <img src={logoSrc(resume.logo, 120)} alt="" onError={(e) => onLogoError(e, resume.logo)} />
+                      : <Tv size={22} />}
+                  </span>
+                  <span className="resume-text">
+                    <span className="resume-label">Continue watching</span>
+                    <span className="resume-name">{resume.name}</span>
+                  </span>
+                  <span className="resume-play"><Play size={18} fill="currentColor" /></span>
+                </button>
+              )}
+
+              <div className="section-head">
+                <div className="section-title">
+                  <h1>{heading}</h1>
+                  <span className="count"><span className="live-dot" /> {results.length.toLocaleString()} live</span>
+                </div>
+                <label className="sort">
+                  <ArrowUpDown size={14} />
+                  <select value={sort} onChange={(e) => update({ sort: e.target.value })} aria-label="Sort channels">
+                    {Object.entries(SORTS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                  </select>
+                </label>
+                {(activeChips.length > 0 || view !== VIEW_ALL) && (
+                  <div className="active-chips">
+                    {view !== VIEW_ALL && (
+                      <span className="chip on removable">
+                        {view === VIEW_FAVORITES ? 'Favorites' : 'Recent'}
+                        <button onClick={() => setView(VIEW_ALL)} aria-label="Clear view"><X size={13} /></button>
+                      </span>
+                    )}
+                    {activeChips.map(({ facet, value }) => (
+                      <span key={`${facet}:${value}`} className="chip on removable">
+                        {value}
+                        <button onClick={() => toggleFacet(facet, value)} aria-label={`Remove ${value}`}><X size={13} /></button>
+                      </span>
+                    ))}
+                    {activeChips.length > 1 && (
+                      <button className="link-btn" onClick={clearFacets}>Clear all</button>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
 
-            <AdSlot slot="grid" format="fluid" className="ad-grid" />
+              <AdSlot slot="grid" format="fluid" className="ad-grid" />
 
-            {results.length > 0 ? (
-              <>
-                <VirtualGrid
-                  items={results}
-                  scrollParent={mainRef}
-                  onPlay={play}
-                  isFavorite={isFavorite}
-                  onToggleFavorite={toggleFavorite}
-                  statusOf={statusOf}
-                />
+              {results.length > 0 ? (
+                <>
+                  <VirtualGrid
+                    items={results}
+                    scrollParent={mainRef}
+                    onPlay={play}
+                    isFavorite={isFavorite}
+                    onToggleFavorite={toggleFav}
+                    statusOf={statusOf}
+                  />
+                </>
+              ) : (
+                <div className="empty">
+                  <span className="empty-icon">
+                    {view === VIEW_FAVORITES ? <Star size={28} /> : view === VIEW_RECENT ? <History size={28} /> : <Search size={28} />}
+                  </span>
+                  <h2>
+                    {view === VIEW_FAVORITES ? 'No favorites yet'
+                      : view === VIEW_RECENT ? 'Nothing watched yet'
+                      : 'No channels found'}
+                  </h2>
+                  <p>
+                    {view === VIEW_FAVORITES ? 'Tap the star on any channel to keep it here.'
+                      : view === VIEW_RECENT ? 'Channels you watch will show up here.'
+                      : query ? `Nothing matches “${query}”. Try a different name.`
+                      : 'Try removing a filter or two.'}
+                  </p>
+                  {(activeChips.length > 0 || query || view !== VIEW_ALL) && (
+                    <button className="btn" onClick={goHome}>Browse all channels</button>
+                  )}
+                </div>
+              )}
 
-                {/* Second ad below the channel grid */}
-                <AdSlot slot="grid2" format="auto" className="ad-grid2" />
-              </>
-            ) : (
-              <div className="center-state small">
-                <p>
-                  {view === VIEW_FAVORITES ? 'No favorites yet — tap the ★ on any channel.'
-                    : view === VIEW_RECENT ? 'Nothing watched yet.'
-                    : query ? `No channels match “${query}”.`
-                    : 'No channels match these filters.'}
-                </p>
-                {(activeChips.length > 0 || query) && (
-                  <button className="btn-ghost" onClick={() => { clearFacets(); update({ query: '' }); }}>
-                    Clear filters
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Multiplex ad — sponsored content grid at the bottom */}
-            <MultiplexAd />
-          </>
-        )}
+              <MultiplexAd />
+            </>
+          )}
+        </div>
       </main>
 
-      {/* Sticky anchor ad at the bottom of the viewport */}
+      {/* ---------------- Bottom navigation (phones & tablets) ---------------- */}
+      <nav className="bottom-nav" aria-label="Primary">
+        {navItems.map(({ key, label, icon: Icon, active, onClick, badge }) => (
+          <button key={key} className={`nav-item ${active ? 'on' : ''}`} onClick={onClick} aria-current={active ? 'page' : undefined}>
+            <span className="nav-icon">
+              <Icon size={22} />
+              {badge > 0 && <span className="nav-badge">{badge > 99 ? '99+' : badge}</span>}
+            </span>
+            <span className="nav-label">{label}</span>
+          </button>
+        ))}
+      </nav>
+
       <AnchorAd />
+      <Toast toast={toast} onDone={clearToast} />
     </div>
   );
 }

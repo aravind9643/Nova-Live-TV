@@ -5,7 +5,7 @@
  * segments are never cached — they're live streams and would blow the quota.
  */
 
-const VERSION = 'nova-v1';
+const VERSION = 'nova-v2';
 const SHELL = `${VERSION}-shell`;
 
 // Only same-origin GETs for static assets are cacheable. Anything else

@@ -37,11 +37,17 @@ npm install
 # 2. Start the dev server
 npm run dev          # → http://localhost:5173
 
-# 3. Build for production
+# 3. Build for production (also regenerates public/sitemap.xml)
 npm run build
 
 # 4. Preview the production build
 npm run preview
+
+# Quality
+npm run lint         # ESLint
+npm run format       # Prettier
+npm test             # Playwright smoke tests (phone + desktop); first run: npx playwright install chromium
+npm run og           # re-render public/og.png (link-preview image)
 ```
 
 > **Environment variables** are optional and only used for ads. Copy `.env.example` to `.env` to configure them — see [Monetization](#-monetization-adsense). Vite bakes env values in at **build time**, so restart the dev server / rebuild after editing `.env`.
@@ -53,6 +59,7 @@ npm run preview
 | `←` / `→` | Previous / next channel |
 | `F`       | Toggle fullscreen   |
 | `M`       | Mute / unmute       |
+| `P`       | Picture-in-picture  |
 | `Esc`     | Close the player    |
 
 ## 🧱 Tech stack

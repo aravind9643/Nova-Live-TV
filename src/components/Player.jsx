@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Hls from 'hls.js';
 import {
   Volume2, VolumeX, Maximize, Minimize, Loader2, AlertTriangle,
-  SkipBack, SkipForward, RotateCcw,
+  SkipBack, SkipForward, RotateCcw, PictureInPicture2,
 } from 'lucide-react';
 import { tap } from '../lib/haptics';
 
 const LOAD_TIMEOUT = 12000;   // declare a stream dead after this
 const CHROME_HIDE_MS = 3200;  // auto-hide overlay controls while playing
 const SWIPE_MIN = 60;         // px before a horizontal swipe counts as a zap
+const SWIPE_CLOSE = 110;      // px of downward swipe that closes the player
+
+// hls.js is only needed where HLS isn't native (i.e. not Safari/iOS), and the
+// light build covers live streams — load it on demand.
+let hlsModule = null;
+const loadHls = () => (hlsModule ??= import('hls.js/dist/hls.light.mjs').then((m) => m.default));
+const canPip = typeof document !== 'undefined' && !!document.pictureInPictureEnabled;
 
 // The video surface. This is an embedded panel (not a modal) — the watch screen
 // owns the surrounding layout, title bar and channel rail.
@@ -20,6 +26,7 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
 
   const [status, setStatus] = useState('loading'); // loading | playing | error
   const [muted, setMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [chrome, setChrome] = useState(true);
   const [attempt, setAttempt] = useState(0);
@@ -43,6 +50,7 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
     setStatus('loading');
     let hls;
     let settled = false;
+    let disposed = false;
 
     const fail = () => {
       if (settled) return;
@@ -64,30 +72,32 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = channel.url; // native HLS (Safari / iOS)
       video.play().catch(() => {});
-    } else if (Hls.isSupported()) {
-      hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-        maxBufferLength: 60,
-        backBufferLength: 30,
-        maxMaxBufferLength: 120,
-        liveSyncDurationCount: 3,
-      });
-      hls.loadSource(channel.url);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
-      hls.on(Hls.Events.ERROR, (_e, data) => {
-        if (!data.fatal) return;
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
-        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-        else { clearTimeout(timeout); fail(); }
-      });
     } else {
-      clearTimeout(timeout);
-      fail();
+      loadHls().then((Hls) => {
+        if (disposed) return;
+        if (!Hls.isSupported()) { clearTimeout(timeout); fail(); return; }
+        hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          maxBufferLength: 60,
+          backBufferLength: 30,
+          maxMaxBufferLength: 120,
+          liveSyncDurationCount: 3,
+        });
+        hls.loadSource(channel.url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+        hls.on(Hls.Events.ERROR, (_e, data) => {
+          if (!data.fatal) return;
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+          else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+          else { clearTimeout(timeout); fail(); }
+        });
+      }).catch(() => { clearTimeout(timeout); fail(); });
     }
 
     return () => {
+      disposed = true;
       clearTimeout(timeout);
       video.removeEventListener('playing', onPlaying);
       if (hls) hls.destroy();
@@ -103,6 +113,24 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
     v.muted = !v.muted;
     setMuted(v.muted);
     wakeChrome();
+  }, [wakeChrome]);
+
+  const changeVolume = useCallback((v) => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.volume = v;
+    el.muted = v === 0;
+    setVolume(v);
+    setMuted(v === 0);
+    wakeChrome();
+  }, [wakeChrome]);
+
+  const togglePip = useCallback(async () => {
+    wakeChrome();
+    try {
+      if (document.pictureInPictureElement) await document.exitPictureInPicture();
+      else await videoRef.current?.requestPictureInPicture();
+    } catch { /* not allowed until the stream plays */ }
   }, [wakeChrome]);
 
   const toggleFullscreen = useCallback(async () => {
@@ -151,6 +179,7 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
       else if (e.key === 'ArrowLeft') onPrev?.();
       else if (e.key.toLowerCase() === 'f') toggleFullscreen();
       else if (e.key.toLowerCase() === 'm') toggleMute();
+      else if (e.key.toLowerCase() === 'p' && canPip) togglePip();
       wakeChrome();
     };
     const onFs = () => {
@@ -170,7 +199,7 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
       document.removeEventListener('fullscreenchange', onFs);
       document.removeEventListener('webkitfullscreenchange', onFs);
     };
-  }, [onBack, onNext, onPrev, toggleFullscreen, toggleMute, wakeChrome]);
+  }, [onBack, onNext, onPrev, toggleFullscreen, toggleMute, togglePip, wakeChrome]);
 
   // Safety net: if the player unmounts while still locked/fullscreen, clean up.
   useEffect(() => () => {
@@ -202,6 +231,8 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
     if (Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy) * 1.4) {
       tap();
       (dx < 0 ? onNext : onPrev)?.();
+    } else if (dy > SWIPE_CLOSE && Math.abs(dy) > Math.abs(dx) * 1.4 && !document.fullscreenElement) {
+      onBack?.();
     } else if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
       setChrome((c) => (c ? false : (wakeChrome(), true)));
     }
@@ -252,10 +283,23 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
             <SkipForward size={20} />
           </button>
         )}
+        <span className="stage-live"><span className="live-dot" /> LIVE</span>
         <span className="stage-spacer" />
         <button className="stage-btn" onClick={toggleMute} title="Mute (M)" aria-label={muted ? 'Unmute' : 'Mute'} aria-pressed={muted}>
           {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
+        <input
+          className="stage-volume"
+          type="range" min="0" max="1" step="0.05"
+          value={muted ? 0 : volume}
+          onChange={(e) => changeVolume(Number(e.target.value))}
+          aria-label="Volume"
+        />
+        {canPip && (
+          <button className="stage-btn" onClick={togglePip} title="Picture in picture (P)" aria-label="Picture in picture">
+            <PictureInPicture2 size={20} />
+          </button>
+        )}
         <button className="stage-btn" onClick={toggleFullscreen} title="Fullscreen (F)" aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}>
           {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
         </button>

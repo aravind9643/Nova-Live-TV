@@ -6,8 +6,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "node scripts/sitemap.mjs && vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "format": "prettier --write \"src/**/*.{js,jsx,css}\" \"scripts/**\" \"tests/**\"",
+    "test": "playwright test",
+    "og": "node scripts/og-image.mjs"
   },
   "dependencies": {
     "hls.js": "^1.5.17",
@@ -16,8 +20,15 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.49.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.13.0",
     "playwright": "^1.49.1",
+    "prettier": "^3.9.10",
     "vite": "^5.4.11"
   }
 }
