@@ -11,52 +11,13 @@
 //        { type: 'error', message }
 
 import { parseM3U } from './m3u';
+import { absorb, finalize } from './merge';
 
 const FACET_FILES = {
   category: 'index.category.m3u',
   country: 'index.country.m3u',
   language: 'index.language.m3u',
 };
-
-function blankEntry(c) {
-  return {
-    url: c.url,
-    name: c.name,
-    logo: c.logo,
-    quality: c.quality,
-    tvgId: c.tvgId,
-    flags: c.flags,
-    category: [],
-    country: [],
-    language: [],
-  };
-}
-
-function absorb(byUrl, facet, channels) {
-  for (const c of channels) {
-    let entry = byUrl.get(c.url);
-    if (!entry) {
-      entry = blankEntry(c);
-      byUrl.set(c.url, entry);
-    }
-    if (!entry.logo && c.logo) entry.logo = c.logo;
-    if (!entry.quality && c.quality) entry.quality = c.quality;
-    for (const g of c.groups) {
-      if (g && !entry[facet].includes(g)) entry[facet].push(g);
-    }
-  }
-}
-
-// Precompute the fields the UI needs so the main thread never has to.
-function finalize(byUrl) {
-  const out = [];
-  for (const c of byUrl.values()) {
-    c.search = `${c.name} ${c.category.join(' ')} ${c.country.join(' ')}`.toLowerCase();
-    c.primary = c.category[0] || c.country[0] || 'Other';
-    out.push(c);
-  }
-  return out;
-}
 
 async function fetchFacet(base, facet) {
   const res = await fetch(`${base}/${FACET_FILES[facet]}`);

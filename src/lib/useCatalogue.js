@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { parseM3U } from './m3u';
 import { cacheGet, cacheSet, MAX_AGE } from './cache';
+import { absorb, finalize, unpack } from './merge';
 
 // Unified channel catalogue.
 //
@@ -14,7 +15,7 @@ import { cacheGet, cacheSet, MAX_AGE } from './cache';
 // so a phone shows channels after a third of the download instead of all 9.5MB.
 
 const BASE = import.meta.env.DEV ? '/iptv' : 'https://iptv-org.github.io/iptv';
-const CACHE_KEY = 'catalogue-v1';
+const CACHE_KEY = 'catalogue-v2';
 
 export const FACETS = {
   category: { label: 'Category', plural: 'Categories' },
@@ -22,46 +23,39 @@ export const FACETS = {
   language: { label: 'Language', plural: 'Languages' },
 };
 
+// ---- build-time catalogue --------------------------------------------------
+// The build ships a pre-merged, compact copy (public/catalogue.json, well
+// under 1 MB gzipped) — far cheaper than downloading and parsing 9.5 MB of
+// playlists on a phone. Too old (the nightly rebuild didn't run)? Fall back to
+// the live playlists.
+const CATALOGUE_MAX_AGE = 3 * 24 * 60 * 60 * 1000;
+
+async function loadBuilt() {
+  const res = await fetch('/catalogue.json');
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (Date.now() - Date.parse(data.generatedAt) > CATALOGUE_MAX_AGE) throw new Error('stale');
+  return unpack(data);
+}
+
 // ---- main-thread fallback (no Worker support) ------------------------------
 async function loadOnMainThread(onPartial) {
   const byUrl = new Map();
-  const absorb = (facet, channels) => {
-    for (const c of channels) {
-      let e = byUrl.get(c.url);
-      if (!e) {
-        e = { url: c.url, name: c.name, logo: c.logo, quality: c.quality,
-              tvgId: c.tvgId, flags: c.flags, category: [], country: [], language: [] };
-        byUrl.set(c.url, e);
-      }
-      if (!e.logo && c.logo) e.logo = c.logo;
-      if (!e.quality && c.quality) e.quality = c.quality;
-      for (const g of c.groups) if (g && !e[facet].includes(g)) e[facet].push(g);
-    }
-  };
-  const finalize = () => {
-    const out = [];
-    for (const c of byUrl.values()) {
-      c.search = `${c.name} ${c.category.join(' ')} ${c.country.join(' ')}`.toLowerCase();
-      c.primary = c.category[0] || c.country[0] || 'Other';
-      out.push(c);
-    }
-    return out;
-  };
   const get = async (file) => {
     const res = await fetch(`${BASE}/${file}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return parseM3U(await res.text());
   };
 
-  absorb('category', await get('index.category.m3u'));
-  onPartial?.(finalize());
+  absorb(byUrl, 'category', await get('index.category.m3u'));
+  onPartial?.(finalize(byUrl));
 
   const rest = await Promise.allSettled([
     get('index.country.m3u').then((c) => ['country', c]),
     get('index.language.m3u').then((c) => ['language', c]),
   ]);
-  for (const r of rest) if (r.status === 'fulfilled') absorb(r.value[0], r.value[1]);
-  return finalize();
+  for (const r of rest) if (r.status === 'fulfilled') absorb(byUrl, r.value[0], r.value[1]);
+  return finalize(byUrl);
 }
 
 // Facet value lists with counts, sorted by frequency.
@@ -103,7 +97,18 @@ export function useCatalogue() {
         if (cached.age <= MAX_AGE) return; // fresh — skip the network entirely
       }
 
-      // 2) Prefer the worker so parsing never blocks the UI.
+      // 2) The compact build-time catalogue: one small JSON, no parsing.
+      try {
+        const channels = await loadBuilt();
+        if (!alive()) return;
+        setState({ status: 'ready', channels, stale: false, enriching: false });
+        cacheSet(CACHE_KEY, channels);
+        return;
+      } catch {
+        /* missing or stale — fall through to the live playlists */
+      }
+
+      // 3) Prefer the worker so parsing never blocks the UI.
       if (typeof Worker !== 'undefined') {
         try {
           worker = new Worker(new URL('./catalogue.worker.js', import.meta.url), { type: 'module' });
@@ -131,7 +136,7 @@ export function useCatalogue() {
         }
       }
 
-      // 3) Fallback.
+      // 4) Fallback.
       try {
         const channels = await loadOnMainThread((partial) => {
           if (alive()) setState({ status: 'ready', channels: partial, stale: false, enriching: true });

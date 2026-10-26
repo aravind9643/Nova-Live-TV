@@ -2,8 +2,10 @@ import { memo } from 'react';
 import { Play, Radio, Star, AlertTriangle } from 'lucide-react';
 import { logoSrc, onLogoError } from '../lib/img';
 import { flagOf } from '../lib/flags';
+import { useI18n } from '../lib/i18n';
 
 function ChannelCard({ channel, index, onPlay, favorite, onToggleFavorite, health = 'unknown' }) {
+  const { t } = useI18n();
   const country = channel.country?.[0];
   const sub = [channel.primary, country].filter(Boolean)
     .filter((v, i, a) => a.indexOf(v) === i).join(' · ');
@@ -49,7 +51,7 @@ function ChannelCard({ channel, index, onPlay, favorite, onToggleFavorite, healt
 
       <button
         className={`card-fav ${favorite ? 'on' : ''}`}
-        aria-label={favorite ? `Remove ${channel.name} from favorites` : `Add ${channel.name} to favorites`}
+        aria-label={t(favorite ? 'removeFav' : 'addFav', { name: channel.name })}
         aria-pressed={favorite}
         onClick={() => onToggleFavorite(channel)}
       >

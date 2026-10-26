@@ -50,6 +50,7 @@ npm test             # unit (Vitest) + e2e (Playwright, phone + desktop)
 npm run test:unit    # Vitest only
 npm run test:e2e     # Playwright only; first run: npx playwright install chromium
 npm run og           # re-render public/og.png (link-preview image)
+npm run data         # fetch playlists → public/catalogue.json, sitemap, page data (HEALTH_CHECK=1 to probe streams)
 ```
 
 > **Environment variables** are optional and only used for ads. Copy `.env.example` to `.env` to configure them — see [Monetization](#-monetization-adsense). Vite bakes env values in at **build time**, so restart the dev server / rebuild after editing `.env`.
@@ -135,7 +136,11 @@ These steps happen outside the code:
 1. **Consent banner (EEA / UK / Switzerland).** In AdSense → *Privacy & messaging* → *European regulations*, create and publish a message. The page already sets Consent Mode v2 defaults; Google's CMP shows the banner and updates them. The *Privacy settings* link in the filters panel reopens it.
 2. **Search Console.** Add the site at search.google.com/search-console, verify it (Vercel: DNS or HTML-tag method), then submit `https://nova-live-tv.vercel.app/sitemap.xml`. The build pre-renders every sitemap page (`dist/category|country|language/<name>/index.html`).
 3. **Error reporting (optional).** Create a Sentry project and set `VITE_SENTRY_DSN` in Vercel's environment variables. Without it nothing is loaded or sent.
-4. **CI.** `.github/workflows/ci.yml` runs lint, unit tests, the build and the Playwright suite on every push to `main` and on pull requests.
+4. **CI.** `.github/workflows/ci.yml` runs lint, unit tests and the build, the Playwright suite (in Microsoft's Playwright container) and Lighthouse budgets (`lighthouserc.json`) on every push to `main` and on pull requests.
+5. **Nightly data refresh.** Create a Vercel Deploy Hook (Project → Settings → Git → Deploy Hooks) and save its URL as the repository secret `VERCEL_DEPLOY_HOOK`. `.github/workflows/refresh.yml` then rebuilds the site daily, refreshing `catalogue.json`, the sitemap and the pre-rendered pages.
+6. **Stream health check (optional).** Set `HEALTH_CHECK=1` in Vercel's environment variables to probe every stream during the build and sink unreachable ones (adds a few minutes to the build).
+7. **Analytics.** Enable *Analytics* in the Vercel project dashboard. It's cookie-less; nothing is collected until it's enabled.
+8. **Linux screenshot baselines.** The first CI run writes the missing Linux baselines for the visual tests and uploads them in the `playwright-report` artifact (`tests/__screenshots__/linux/`). Commit that folder so later runs compare against it.
 
 ## ⚠️ Notes & limitations
 

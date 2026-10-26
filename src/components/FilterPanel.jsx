@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Search, X, Check, ChevronDown, SlidersHorizontal, EyeOff } from 'lucide-react';
 import { FACETS } from '../lib/useCatalogue';
+import { useI18n, LANGS } from '../lib/i18n';
 import { flagOf } from '../lib/flags';
 
 // Re-opens Google's consent message (AdSense Privacy & messaging CMP).
@@ -19,6 +20,7 @@ export default function FilterPanel({
   open, onClose, facets, selected, toggleFacet, clearFacets, activeCount, resultCount,
   hideDead, onHideDead,
 }) {
+  const { t, lang, setLang } = useI18n();
   const [filter, setFilter] = useState('');
   const [expanded, setExpanded] = useState({});
   const [collapsed, setCollapsed] = useState({});
@@ -79,18 +81,18 @@ export default function FilterPanel({
         ref={sheetRef}
         id="filters"
         className={`filters ${open ? 'open' : ''}`}
-        aria-label="Filters"
+        aria-label={t('filters')}
         aria-modal={open || undefined}
         role={open ? 'dialog' : undefined}
       >
         <div className="sheet-drag" onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}>
           <div className="sheet-grip" aria-hidden />
           <div className="filters-head">
-            <h2><SlidersHorizontal size={17} /> Filters</h2>
+            <h2><SlidersHorizontal size={17} /> {t('filters')}</h2>
             {activeCount > 0 && (
-              <button className="link-btn" onClick={clearFacets}>Reset ({activeCount})</button>
+              <button className="link-btn" onClick={clearFacets}>{t('reset', { n: activeCount })}</button>
             )}
-            <button className="icon-btn filters-close" aria-label="Close filters" onClick={onClose}>
+            <button className="icon-btn filters-close" aria-label={t('closeFilters')} onClick={onClose}>
               <X size={20} />
             </button>
           </div>
@@ -101,22 +103,23 @@ export default function FilterPanel({
           <input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Find a category, country, language…"
-            aria-label="Filter options"
+            placeholder={t('findOption')}
+            aria-label={t('filterOptions')}
           />
           {filter && (
-            <button className="icon-btn sm" aria-label="Clear" onClick={() => setFilter('')}><X size={14} /></button>
+            <button className="icon-btn sm" aria-label={t('clear')} onClick={() => setFilter('')}><X size={14} /></button>
           )}
         </label>
 
         <div className="filters-body">
           <label className="switch-row">
             <EyeOff size={16} />
-            <span>Hide broken streams</span>
+            <span>{t('hideDead')}</span>
             <input type="checkbox" className="switch" checked={hideDead} onChange={(e) => onHideDead(e.target.checked)} />
           </label>
 
-          {Object.entries(FACETS).map(([facet, { plural }]) => {
+          {Object.keys(FACETS).map((facet) => {
+            const plural = t({ category: 'categories', country: 'countries', language: 'languages' }[facet]);
             const all = facets[facet] || [];
             const active = selected[facet] || [];
             const matching = q ? all.filter((v) => v.name.toLowerCase().includes(q)) : all;
@@ -169,7 +172,7 @@ export default function FilterPanel({
                     </div>
                     {!q && ordered.length > FACET_PREVIEW && (
                       <button className="link-btn facet-more" onClick={() => setExpanded((p) => ({ ...p, [facet]: !p[facet] }))}>
-                        {showAll ? 'Show less' : `Show all ${ordered.length.toLocaleString()}`}
+                        {showAll ? t('showLess') : t('showAll', { n: ordered.length })}
                       </button>
                     )}
                   </>
@@ -178,17 +181,24 @@ export default function FilterPanel({
             );
           })}
 
+          <label className="lang-row">
+            <span>{t('language')}</span>
+            <select value={lang} onChange={(e) => setLang(e.target.value)}>
+              {Object.entries(LANGS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+            </select>
+          </label>
+
           <p className="filters-foot">
-            Streams by iptv-org · free &amp; open
+            {t('credits')}
             {' · '}
-            <button className="link-btn inline" onClick={openPrivacySettings}>Privacy settings</button>
+            <button className="link-btn inline" onClick={openPrivacySettings}>{t('privacy')}</button>
           </p>
         </div>
 
         {/* Phone-only sticky action: shows the live result count. */}
         <div className="filters-apply">
           <button className="btn primary block" onClick={onClose}>
-            Show {resultCount.toLocaleString()} channels
+            {t('showN', { n: resultCount })}
           </button>
         </div>
       </aside>

@@ -30,7 +30,7 @@ test('a single category gets a real path', async ({ page }) => {
 test('opening a channel then Back returns to the grid', async ({ page }) => {
   await firstCard(page).click();
   await expect(page.locator('.watch')).toBeVisible();
-  await expect(page).toHaveURL(/play=/);
+  await expect(page).toHaveURL(/\/watch\/[a-z0-9-]+-[a-z0-9]{6}/);
   await page.goBack();
   await expect(page.locator('.watch')).toHaveCount(0);
   await expect(firstCard(page)).toBeVisible();
@@ -56,13 +56,14 @@ test('Back keeps the channel playing in a mini-player', async ({ page }) => {
   await firstCard(page).click();
   await expect(page.locator('.watch')).toBeVisible();
   await page.goBack();
-  const mini = page.locator('.mini');
+  const mini = page.getByRole('region', { name: /Now playing/ });
   await expect(mini).toBeVisible();
-  await mini.locator('.mini-expand').click();
+  await page.locator('.mini-expand').click();
   await expect(page.locator('.watch')).toBeVisible();
   await page.goBack();
-  await page.locator('.mini').getByLabel('Stop playback').click();
-  await expect(page.locator('.mini')).toHaveCount(0);
+  await mini.getByLabel('Stop playback').click();
+  await expect(mini).toHaveCount(0);
+  await expect(page.locator('.player-host')).toHaveCount(0);
 });
 
 test('arrow keys move focus across the grid', async ({ page }) => {
@@ -93,4 +94,25 @@ test('shows an offline notice when the connection drops', async ({ page, context
   await expect(page.locator('.notice.offline')).toBeVisible();
   await context.setOffline(false);
   await expect(page.locator('.notice.offline')).toHaveCount(0);
+});
+
+test('docking to the mini-player keeps the same video element (no reconnect)', async ({ page }) => {
+  await firstCard(page).click();
+  await expect(page.locator('.player-host.full video')).toBeAttached();
+  await page.locator('.player-host video').evaluate((v) => { v.dataset.marker = 'same'; });
+  await page.goBack();
+  await expect(page.locator('.player-host.mini')).toBeAttached();
+  await expect(page.locator('.player-host video')).toHaveAttribute('data-marker', 'same');
+  await page.locator('.mini-expand').click();
+  await expect(page.locator('.player-host.full video')).toHaveAttribute('data-marker', 'same');
+});
+
+test('switching language translates the interface and is remembered', async ({ page, isMobile }) => {
+  if (isMobile) await page.locator('.nav-item').nth(1).click();
+  await page.locator('.lang-row select').selectOption('es');
+  if (isMobile) await page.locator('.filters-apply button').click();
+  await expect(page.getByLabel('Buscar canales')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await page.reload();
+  await expect(page.getByLabel('Buscar canales')).toBeVisible();
 });

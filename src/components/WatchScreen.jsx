@@ -1,13 +1,13 @@
-import { Suspense, lazy, useState } from 'react';
+import { useState } from 'react';
 import {
-  ArrowLeft, Star, Radio, History, Play, Loader2, Share2, Check, ListVideo, AlertTriangle,
+  ArrowLeft, Star, Radio, History, Play, Share2, Check, ListVideo, AlertTriangle,
 } from 'lucide-react';
 import { channelKey } from '../lib/useLibrary';
 import AdSlot from './AdSlot';
+import { useI18n } from '../lib/i18n';
 import { logoSrc, onLogoError } from '../lib/img';
 import { flagOf } from '../lib/flags';
 
-const Player = lazy(() => import('./Player'));
 
 function Thumb({ channel, size = 22 }) {
   return (
@@ -22,9 +22,10 @@ function Thumb({ channel, size = 22 }) {
 // A dedicated "watch" screen. Phones: video pinned on top, details and lists
 // scroll underneath. Desktop: video + details on the left, a queue on the right.
 export default function WatchScreen({
-  channel, recent, upNext = [], onBack, onPrev, onNext, onPlay,
-  favorite, onToggleFavorite, onHealth, statusOf,
+  channel, recent, upNext = [], onBack, onPlay, onSlot,
+  favorite, onToggleFavorite, statusOf,
 }) {
+  const { t } = useI18n();
   const [shared, setShared] = useState(false);
   // Don't show the channel you're already watching in the rail.
   const rail = recent.filter((c) => channelKey(c) !== channelKey(channel));
@@ -48,7 +49,7 @@ export default function WatchScreen({
   return (
     <div className="watch">
       <header className="watch-bar">
-        <button className="icon-btn" onClick={onBack} aria-label="Back to channels">
+        <button className="icon-btn" onClick={onBack} aria-label={t('back')}>
           <ArrowLeft size={22} />
         </button>
         <span className="watch-bar-title">{channel.name}</span>
@@ -56,17 +57,9 @@ export default function WatchScreen({
 
       <div className="watch-layout">
         <div className="watch-primary">
+          {/* The shared <PlayerHost> video is positioned over this slot. */}
           <div className="stage-wrap">
-            <Suspense fallback={
-              <div className="stage">
-                <div className="stage-state">
-                  <Loader2 className="spin" size={34} />
-                  <span>Starting player…</span>
-                </div>
-              </div>
-            }>
-              <Player channel={channel} onPrev={onPrev} onNext={onNext} onHealth={onHealth} onBack={onBack} />
-            </Suspense>
+            <div className="stage-slot" ref={onSlot} />
           </div>
 
           <section className="watch-info">
@@ -75,7 +68,7 @@ export default function WatchScreen({
               <div className="watch-title">
                 <h1>{channel.name}</h1>
                 <div className="watch-meta">
-                  <span className="live-badge"><span className="live-dot" /> LIVE</span>
+                  <span className="live-badge"><span className="live-dot" /> {t('liveBadge')}</span>
                   {channel.quality && <span className="tag">{channel.quality}</span>}
                   {meta.map((m) => (
                     <span key={m} className="meta-item">
@@ -95,14 +88,14 @@ export default function WatchScreen({
                 aria-pressed={favorite}
               >
                 <Star size={17} fill={favorite ? 'currentColor' : 'none'} />
-                {favorite ? 'Saved' : 'Favorite'}
+                {favorite ? t('saved') : t('favorite')}
               </button>
               <button className="btn" onClick={share}>
-                {shared ? <Check size={17} /> : <Share2 size={17} />} {shared ? 'Link copied' : 'Share'}
+                {shared ? <Check size={17} /> : <Share2 size={17} />} {shared ? t('linkCopied') : t('share')}
               </button>
             </div>
             <p className="watch-tip">
-              Swipe the video to change channel · <kbd>←</kbd> <kbd>→</kbd> zap · <kbd>F</kbd> fullscreen · <kbd>M</kbd> mute · <kbd>P</kbd> picture-in-picture · swipe down to close
+              {t('watchTip')}
             </p>
           </section>
 
@@ -112,7 +105,7 @@ export default function WatchScreen({
         <aside className="watch-side">
           {rail.length > 0 && (
             <section className="side-section">
-              <h2 className="side-title"><History size={16} /> Recently watched</h2>
+              <h2 className="side-title"><History size={16} /> {t('recentlyWatched')}</h2>
               <div className="rail">
                 {rail.map((c) => (
                   <button
@@ -134,7 +127,7 @@ export default function WatchScreen({
 
           {upNext.length > 0 && (
             <section className="side-section">
-              <h2 className="side-title"><ListVideo size={16} /> Up next</h2>
+              <h2 className="side-title"><ListVideo size={16} /> {t('upNext')}</h2>
               <div className="queue">
                 {upNext.map((c) => (
                   <button

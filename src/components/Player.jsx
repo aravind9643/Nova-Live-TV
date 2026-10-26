@@ -4,6 +4,7 @@ import {
   SkipBack, SkipForward, RotateCcw, PictureInPicture2, Cast, WifiOff,
 } from 'lucide-react';
 import { tap } from '../lib/haptics';
+import { useI18n } from '../lib/i18n';
 
 const LOAD_TIMEOUT = 12000;   // declare a stream dead after this
 const CHROME_HIDE_MS = 3200;  // auto-hide overlay controls while playing
@@ -18,7 +19,8 @@ const canPip = typeof document !== 'undefined' && !!document.pictureInPictureEna
 
 // The video surface. This is an embedded panel (not a modal) — the watch screen
 // owns the surrounding layout, title bar and channel rail.
-export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
+export default function Player({ channel, onPrev, onNext, onHealth, onBack, keys = true }) {
+  const { t } = useI18n();
   const videoRef = useRef(null);
   const frameRef = useRef(null);
   const touch = useRef(null);
@@ -202,6 +204,7 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
 
   useEffect(() => {
     const onKey = (e) => {
+      if (!keys) return; // docked as the mini-player: don't hijack browsing keys
       const tag = e.target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return; // don't hijack typing
       if (e.key === 'Escape' && !document.fullscreenElement) return onBack?.();
@@ -229,7 +232,7 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
       document.removeEventListener('fullscreenchange', onFs);
       document.removeEventListener('webkitfullscreenchange', onFs);
     };
-  }, [onBack, onNext, onPrev, toggleFullscreen, toggleMute, togglePip, wakeChrome]);
+  }, [keys, onBack, onNext, onPrev, toggleFullscreen, toggleMute, togglePip, wakeChrome]);
 
   // Safety net: if the player unmounts while still locked/fullscreen, clean up.
   useEffect(() => () => {
@@ -281,22 +284,22 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
       {status === 'loading' && (
         <div className="stage-state">
           <Loader2 className="spin" size={34} />
-          <span>Tuning in…</span>
+          <span>{t('tuning')}</span>
         </div>
       )}
       {status === 'error' && (
         <div className="stage-state error">
           <AlertTriangle size={34} />
           {navigator.onLine === false
-            ? <span><WifiOff size={14} /> You’re offline — reconnect and try again.</span>
-            : <span>This stream is offline or geo-blocked.</span>}
+            ? <span><WifiOff size={14} /> {t('offlineStream')}</span>
+            : <span>{t('deadStream')}</span>}
           <div className="stage-actions">
             <button className="btn-ghost" onClick={() => setAttempt((a) => a + 1)}>
-              <RotateCcw size={15} /> Try again
+              <RotateCcw size={15} /> {t('tryAgain')}
             </button>
             {onNext && (
               <button className="btn-ghost primary" onClick={onNext}>
-                <SkipForward size={15} /> Next channel
+                <SkipForward size={15} /> {t('nextChannel')}
               </button>
             )}
           </div>
@@ -306,18 +309,18 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
       {/* Overlay controls */}
       <div className="stage-controls">
         {onPrev && (
-          <button className="stage-btn" onClick={onPrev} title="Previous (←)" aria-label="Previous channel">
+          <button className="stage-btn" onClick={onPrev} title={`${t('prevChannelLabel')} (←)`} aria-label={t('prevChannelLabel')}>
             <SkipBack size={20} />
           </button>
         )}
         {onNext && (
-          <button className="stage-btn" onClick={onNext} title="Next (→)" aria-label="Next channel">
+          <button className="stage-btn" onClick={onNext} title={`${t('nextChannelLabel')} (→)`} aria-label={t('nextChannelLabel')}>
             <SkipForward size={20} />
           </button>
         )}
-        <span className="stage-live"><span className="live-dot" /> LIVE</span>
+        <span className="stage-live"><span className="live-dot" /> {t('liveBadge')}</span>
         <span className="stage-spacer" />
-        <button className="stage-btn" onClick={toggleMute} title="Mute (M)" aria-label={muted ? 'Unmute' : 'Mute'} aria-pressed={muted}>
+        <button className="stage-btn" onClick={toggleMute} title={`${t('mute')} (M)`} aria-label={muted ? t('unmute') : t('mute')} aria-pressed={muted}>
           {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
         <input
@@ -325,19 +328,19 @@ export default function Player({ channel, onPrev, onNext, onHealth, onBack }) {
           type="range" min="0" max="1" step="0.05"
           value={muted ? 0 : volume}
           onChange={(e) => changeVolume(Number(e.target.value))}
-          aria-label="Volume"
+          aria-label={t('volume')}
         />
         {castable && (
-          <button className="stage-btn" onClick={cast} title="Cast to a device" aria-label="Cast to a device">
+          <button className="stage-btn" onClick={cast} title={t('cast')} aria-label={t('cast')}>
             <Cast size={20} />
           </button>
         )}
         {canPip && (
-          <button className="stage-btn" onClick={togglePip} title="Picture in picture (P)" aria-label="Picture in picture">
+          <button className="stage-btn" onClick={togglePip} title={`${t('pip')} (P)`} aria-label={t('pip')}>
             <PictureInPicture2 size={20} />
           </button>
         )}
-        <button className="stage-btn" onClick={toggleFullscreen} title="Fullscreen (F)" aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}>
+        <button className="stage-btn" onClick={toggleFullscreen} title={`${t('enterFs')} (F)`} aria-label={isFullscreen ? t('exitFs') : t('enterFs')}>
           {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
         </button>
       </div>

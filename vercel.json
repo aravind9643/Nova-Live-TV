@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/(category|country|language)/(.*)", "destination": "/index.html" }
+    { "source": "/(category|country|language|watch)/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {

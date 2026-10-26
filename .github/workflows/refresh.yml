@@ -1,0 +1,29 @@
+name: Nightly data refresh
+
+# Rebuilds the site every night so catalogue.json, the sitemap, the
+# pre-rendered pages and the stream health check stay current. The app treats
+# a catalogue older than 3 days as stale and falls back to the live playlists.
+#
+# Setup: Vercel → Project → Settings → Git → Deploy Hooks → create one for the
+# production branch, then add its URL as the repository secret
+# VERCEL_DEPLOY_HOOK. Set HEALTH_CHECK=1 in Vercel's environment variables to
+# enable the stream probe.
+
+on:
+  schedule:
+    - cron: '17 3 * * *' # 03:17 UTC daily
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Vercel production build
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::warning::VERCEL_DEPLOY_HOOK secret not set — skipping"
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK"

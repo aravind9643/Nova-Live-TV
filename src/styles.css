@@ -35,7 +35,7 @@
   --ok: #34d399;
 
   /* Type */
-  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-display: 'Space Grotesk', var(--font);
   --fs-xs: 11px;
   --fs-sm: 12.5px;
@@ -395,6 +395,14 @@ kbd {
   flex: 0 0 auto; padding: var(--s3) var(--gutter) calc(var(--s3) + var(--safe-b));
   border-top: 1px solid var(--border); background: var(--surface-1);
 }
+.lang-row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+  min-height: 52px; padding: var(--s2) var(--s3) 0; color: var(--text-dim); font-weight: 600;
+}
+.lang-row select {
+  height: 36px; padding: 0 var(--s3); border-radius: var(--r-full);
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border); font: inherit;
+}
 .filters-foot { padding: var(--s4) var(--s3) 0; font-size: var(--fs-xs); color: var(--text-faint); }
 
 .facet { padding: var(--s1) 0; border-bottom: 1px solid var(--border); }
@@ -489,6 +497,8 @@ kbd {
   animation: shimmer 1.3s ease-in-out infinite;
 }
 .skel-line { height: 11px; border-radius: 6px; }
+.skel-chip { width: 84px; border-color: transparent; }
+.skel-pill { display: block; width: 120px; height: 36px; border-radius: var(--r-full); }
 @keyframes shimmer { from { background-position: 220% 0; } to { background-position: -220% 0; } }
 
 /* Empty / error states */
@@ -567,6 +577,19 @@ kbd {
   touch-action: pan-y;
 }
 .stage-video { width: 100%; height: 100%; display: block; object-fit: contain; }
+
+/* The shared player floats in a fixed layer over a placeholder ("slot"). */
+.stage-slot { width: 100%; aspect-ratio: 16 / 9; background: #000; }
+.player-host {
+  position: fixed; top: 0; left: 0; z-index: 14;
+  will-change: transform; contain: layout paint;
+}
+.player-host .stage { width: 100%; height: 100%; aspect-ratio: auto; }
+.player-host.mini { z-index: 46; border-radius: var(--r-md) var(--r-md) 0 0; overflow: hidden; }
+.player-host.mini .stage-controls,
+.player-host.mini .stage-state span,
+.player-host.mini .stage-actions { display: none; }
+.player-host.mini .stage-state { padding: var(--s2); }
 .stage-state {
   position: absolute; inset: 0; z-index: 2;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s3);
@@ -671,7 +694,7 @@ kbd {
     background: linear-gradient(180deg, rgba(0, 0, 0, 0.75), transparent);
   }
   .stage-wrap { position: static; height: 100%; }
-  .stage { height: 100dvh; aspect-ratio: auto; }
+  .stage-slot { height: 100dvh; aspect-ratio: auto; }
   .watch-info, .watch-side, .watch-primary .ad-player { display: none; }
 }
 
@@ -781,9 +804,7 @@ kbd {
   background: var(--surface-1); border: 1px solid var(--border-strong);
   box-shadow: var(--shadow-3);
 }
-.mini-video { position: relative; }
-.mini .stage-controls, .mini .stage-state span, .mini .stage-actions { display: none; }
-.mini .stage-state { padding: var(--s2); }
+.mini-video { aspect-ratio: 16 / 9; background: #000; }
 .mini-expand {
   position: absolute; inset: 0; z-index: 5;
   display: grid; place-items: start end; padding: 8px;
@@ -877,7 +898,7 @@ kbd {
   /* Watch: video + info left, queue right. */
   .watch { display: flex; flex-direction: column; overflow: hidden; }
   .watch-bar, .watch-bar .icon-btn { color: var(--text); }
-  .watch-bar { position: static; background: transparent; padding: var(--s2) var(--s4); height: 64px; border-bottom: 1px solid var(--border); }
+  .watch-bar { position: relative; z-index: 16; background: var(--bg); padding: var(--s2) var(--s4); height: 64px; border-bottom: 1px solid var(--border); }
   .watch-bar-title { font-size: var(--fs-lg); }
   .watch-layout {
     flex: 1; min-height: 0;
@@ -885,7 +906,8 @@ kbd {
   }
   .watch-primary { overflow-y: auto; padding: var(--s5) var(--s6) var(--s7); scrollbar-width: thin; }
   .stage-wrap { position: static; border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-3); }
-  .stage { max-height: calc(100dvh - 260px); }
+  .player-host.full { border-radius: var(--r-lg); overflow: hidden; }
+  .stage-slot { max-height: calc(100dvh - 260px); }
   .watch-info { padding: var(--s5) 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
   .watch-info .watch-tip { grid-column: 1 / -1; }
   .watch-primary .ad-player { margin: 0; width: 100%; }

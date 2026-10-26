@@ -3,8 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 // Combined, multi-axis filter state, serialized to the URL.
 //
 // A single facet value gets a real, crawlable path — /category/Sports,
-// /country/India — which is what search engines index. Everything else
-// (multi-select, search, sort, the playing channel) rides in the hash:
+// /country/India — and so does the playing channel: /watch/bbc-news-3f9a1c.
+// Everything else (multi-select, search, sort) rides in the hash:
 //   /category/Sports#language=English&q=cricket
 // Special views (favorites / recent) live under `view`.
 //
@@ -42,15 +42,19 @@ export function parse() {
     query: p.get('q') ? decodeURIComponent(p.get('q')) : new URLSearchParams(window.location.search).get('q') || '',
     view: p.get('view') || VIEW_ALL,
     sort: SORTS[p.get('sort')] ? p.get('sort') : 'popular',
-    play: p.get('play') ? decodeURIComponent(p.get('play')) : null,
+    // /watch/<slug>, or the older #play=<stream url> links.
+    play: window.location.pathname.match(/^\/watch\/([^/]+)\/?$/)?.[1]
+      ?? (p.get('play') ? decodeURIComponent(p.get('play')) : null),
   };
 }
 
 // Returns the full URL (path + hash) for a state.
 export function toUrl({ selected, query, view, sort, play }) {
   const chips = FACET_KEYS.flatMap((k) => (selected[k] || []).map((v) => [k, v]));
-  const usePath = chips.length === 1 && (!view || view === VIEW_ALL);
-  const path = usePath ? `/${chips[0][0]}/${encodeURIComponent(chips[0][1])}` : '/';
+  const usePath = !play && chips.length === 1 && (!view || view === VIEW_ALL);
+  const path = play ? `/watch/${play}`
+    : usePath ? `/${chips[0][0]}/${encodeURIComponent(chips[0][1])}`
+    : '/';
 
   const p = new URLSearchParams();
   if (!usePath) {
@@ -61,7 +65,6 @@ export function toUrl({ selected, query, view, sort, play }) {
   if (query) p.set('q', encodeURIComponent(query));
   if (view && view !== VIEW_ALL) p.set('view', view);
   if (sort && sort !== 'popular') p.set('sort', sort);
-  if (play) p.set('play', encodeURIComponent(play));
   const s = p.toString();
   const search = new URLSearchParams(window.location.search);
   search.delete('q');

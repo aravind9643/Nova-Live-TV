@@ -13,10 +13,10 @@ describe('URL state', () => {
     expect(url).toBe('/country/United%20States');
   });
 
-  it('puts multi-select, query, sort and play in the hash', () => {
+  it('puts multi-select, query and sort in the hash', () => {
     const url = toUrl({
       selected: { ...EMPTY, category: ['News', 'Sports'] },
-      query: 'bbc', view: 'all', sort: 'az', play: 'https://x/a.m3u8',
+      query: 'bbc', view: 'all', sort: 'az',
     });
     expect(url.startsWith('/#')).toBe(true);
     expect(decodeURIComponent(url)).toContain('category=News~Sports');
@@ -42,6 +42,18 @@ describe('URL state', () => {
     const state = parse();
     expect(state.query).toBe('cnn');
     expect(toUrl(state)).toBe('/#q=cnn');
+  });
+
+  it('gives the playing channel a /watch path and keeps filters in the hash', () => {
+    const url = toUrl({ selected: { ...EMPTY, category: ['News'] }, query: '', view: 'all', sort: 'popular', play: 'bbc-news-abc123' });
+    expect(url).toBe('/watch/bbc-news-abc123#category=News');
+    go(url);
+    expect(parse()).toMatchObject({ play: 'bbc-news-abc123', selected: { ...EMPTY, category: ['News'] } });
+  });
+
+  it('still reads legacy #play=<stream url> links', () => {
+    go(`/#play=${encodeURIComponent(encodeURIComponent('https://x/a.m3u8'))}`);
+    expect(parse().play).toBe('https://x/a.m3u8');
   });
 
   it('falls back to the default sort for unknown values', () => {
