@@ -6,7 +6,7 @@ const DURATION = 4000;
 export default function Toast({ toast, onDone }) {
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(onDone, DURATION);
+    const t = setTimeout(onDone, toast.duration || DURATION);
     return () => clearTimeout(t);
   }, [toast, onDone]);
 

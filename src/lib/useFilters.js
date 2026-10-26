@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // Combined, multi-axis filter state, serialized to the URL.
 //
 // A single facet value gets a real, crawlable path — /category/Sports,
-// /country/India — which is what search engines index. Everything else
-// (multi-select, search, sort, the playing channel) rides in the hash:
+// /country/India — and so does the playing channel: /watch/bbc-news-3f9a1c.
+// Everything else (multi-select, search, sort) rides in the hash:
 //   /category/Sports#language=English&q=cricket
 // Special views (favorites / recent) live under `view`.
 //
@@ -24,7 +24,7 @@ export const SORTS = {
 const FACET_KEYS = ['category', 'country', 'language'];
 const EMPTY = { category: [], country: [], language: [] };
 
-function parse() {
+export function parse() {
   const p = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const sel = {};
   for (const k of FACET_KEYS) {
@@ -42,15 +42,19 @@ function parse() {
     query: p.get('q') ? decodeURIComponent(p.get('q')) : new URLSearchParams(window.location.search).get('q') || '',
     view: p.get('view') || VIEW_ALL,
     sort: SORTS[p.get('sort')] ? p.get('sort') : 'popular',
-    play: p.get('play') ? decodeURIComponent(p.get('play')) : null,
+    // /watch/<slug>, or the older #play=<stream url> links.
+    play: window.location.pathname.match(/^\/watch\/([^/]+)\/?$/)?.[1]
+      ?? (p.get('play') ? decodeURIComponent(p.get('play')) : null),
   };
 }
 
 // Returns the full URL (path + hash) for a state.
-function toUrl({ selected, query, view, sort, play }) {
+export function toUrl({ selected, query, view, sort, play }) {
   const chips = FACET_KEYS.flatMap((k) => (selected[k] || []).map((v) => [k, v]));
-  const usePath = chips.length === 1 && (!view || view === VIEW_ALL);
-  const path = usePath ? `/${chips[0][0]}/${encodeURIComponent(chips[0][1])}` : '/';
+  const usePath = !play && chips.length === 1 && (!view || view === VIEW_ALL);
+  const path = play ? `/watch/${play}`
+    : usePath ? `/${chips[0][0]}/${encodeURIComponent(chips[0][1])}`
+    : '/';
 
   const p = new URLSearchParams();
   if (!usePath) {
@@ -61,7 +65,6 @@ function toUrl({ selected, query, view, sort, play }) {
   if (query) p.set('q', encodeURIComponent(query));
   if (view && view !== VIEW_ALL) p.set('view', view);
   if (sort && sort !== 'popular') p.set('sort', sort);
-  if (play) p.set('play', encodeURIComponent(play));
   const s = p.toString();
   const search = new URLSearchParams(window.location.search);
   search.delete('q');
@@ -71,11 +74,23 @@ function toUrl({ selected, query, view, sort, play }) {
 
 export function useFilters() {
   const [state, setState] = useState(parse);
+  // The latest state, readable synchronously. History writes happen here, never
+  // inside a setState updater — React may run updaters twice (StrictMode) or
+  // later than expected, which let the URL and the app drift apart.
+  const stateRef = useRef(state);
+  const apply = useCallback((next, push = false) => {
+    stateRef.current = next;
+    window.history[push ? 'pushState' : 'replaceState'](null, '', toUrl(next));
+    setState(next);
+  }, []);
 
   useEffect(() => {
     // `popstate` covers Back/Forward (including the Android hardware button);
     // `hashchange` covers a manually edited hash. Both just re-read the URL.
-    const sync = () => setState(parse());
+    const sync = () => {
+      stateRef.current = parse();
+      setState(stateRef.current);
+    };
     window.addEventListener('popstate', sync);
     window.addEventListener('hashchange', sync);
     return () => {
@@ -84,39 +99,29 @@ export function useFilters() {
     };
   }, []);
 
-  const commit = useCallback((next) => {
-    window.history.replaceState(null, '', toUrl(next));
-    setState(next);
-  }, []);
+  const commit = useCallback((next) => apply(next), [apply]);
 
   // `push: true` creates a real history entry so the browser/Android Back
   // button can return to the previous state (used when opening the player)
   // instead of leaving the app entirely.
   const update = useCallback((patch, { push = false } = {}) => {
-    setState((prev) => {
-      const next = { ...prev, ...patch };
-      window.history[push ? 'pushState' : 'replaceState'](null, '', toUrl(next));
-      return next;
-    });
-  }, []);
+    apply({ ...stateRef.current, ...patch }, push);
+  }, [apply]);
 
   // Add/remove a single facet value.
   const toggleFacet = useCallback((facet, value) => {
-    setState((prev) => {
-      const cur = prev.selected[facet] || [];
-      const has = cur.includes(value);
-      const next = {
-        ...prev,
-        view: VIEW_ALL, // choosing a facet leaves favorites/recent
-        selected: {
-          ...prev.selected,
-          [facet]: has ? cur.filter((v) => v !== value) : [...cur, value],
-        },
-      };
-      window.history.replaceState(null, '', toUrl(next));
-      return next;
+    const prev = stateRef.current;
+    const cur = prev.selected[facet] || [];
+    const has = cur.includes(value);
+    apply({
+      ...prev,
+      view: VIEW_ALL, // choosing a facet leaves favorites/recent
+      selected: {
+        ...prev.selected,
+        [facet]: has ? cur.filter((v) => v !== value) : [...cur, value],
+      },
     });
-  }, []);
+  }, [apply]);
 
   const clearFacets = useCallback(() => {
     update({ selected: EMPTY });

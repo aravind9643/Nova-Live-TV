@@ -1,7 +1,15 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Search, X, Check, ChevronDown, SlidersHorizontal, EyeOff } from 'lucide-react';
 import { FACETS } from '../lib/useCatalogue';
+import { useI18n, LANGS } from '../lib/i18n';
 import { flagOf } from '../lib/flags';
+
+// Re-opens Google's consent message (AdSense Privacy & messaging CMP).
+function openPrivacySettings() {
+  window.googlefc = window.googlefc || {};
+  window.googlefc.callbackQueue = window.googlefc.callbackQueue || [];
+  window.googlefc.callbackQueue.push(() => window.googlefc.showRevocationMessage?.());
+}
 
 // How many values to show per facet before "show all".
 const FACET_PREVIEW = 10;
@@ -12,13 +20,39 @@ export default function FilterPanel({
   open, onClose, facets, selected, toggleFacet, clearFacets, activeCount, resultCount,
   hideDead, onHideDead,
 }) {
+  const { t, lang, setLang } = useI18n();
   const [filter, setFilter] = useState('');
   const [expanded, setExpanded] = useState({});
   const [collapsed, setCollapsed] = useState({});
   const q = filter.trim().toLowerCase();
+  const sheetRef = useRef(null);
+
+  // As a phone sheet it's modal: move focus in, trap Tab inside, and hand
+  // focus back to whatever opened it. (On desktop it's a plain sidebar.)
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!open || !sheet || window.matchMedia('(min-width: 1024px)').matches) return;
+    const opener = document.activeElement;
+    const focusables = () => [...sheet.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+    focusables()[0]?.focus();
+    const onKey = (e) => {
+      if (e.key !== 'Tab') return;
+      const els = focusables();
+      if (!els.length) return;
+      const first = els[0];
+      const last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    sheet.addEventListener('keydown', onKey);
+    return () => {
+      sheet.removeEventListener('keydown', onKey);
+      opener?.focus?.();
+    };
+  }, [open]);
 
   // Drag the sheet's header down to dismiss it (phones).
-  const sheetRef = useRef(null);
   const drag = useRef(null);
   const onDragStart = (e) => { drag.current = { y: e.touches[0].clientY, dy: 0 }; };
   const onDragMove = (e) => {
@@ -43,15 +77,22 @@ export default function FilterPanel({
     <>
       <div className={`sheet-backdrop ${open ? 'show' : ''}`} onClick={onClose} aria-hidden />
 
-      <aside ref={sheetRef} className={`filters ${open ? 'open' : ''}`} aria-label="Filters">
+      <aside
+        ref={sheetRef}
+        id="filters"
+        className={`filters ${open ? 'open' : ''}`}
+        aria-label={t('filters')}
+        aria-modal={open || undefined}
+        role={open ? 'dialog' : undefined}
+      >
         <div className="sheet-drag" onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}>
           <div className="sheet-grip" aria-hidden />
           <div className="filters-head">
-            <h2><SlidersHorizontal size={17} /> Filters</h2>
+            <h2><SlidersHorizontal size={17} /> {t('filters')}</h2>
             {activeCount > 0 && (
-              <button className="link-btn" onClick={clearFacets}>Reset ({activeCount})</button>
+              <button className="link-btn" onClick={clearFacets}>{t('reset', { n: activeCount })}</button>
             )}
-            <button className="icon-btn filters-close" aria-label="Close filters" onClick={onClose}>
+            <button className="icon-btn filters-close" aria-label={t('closeFilters')} onClick={onClose}>
               <X size={20} />
             </button>
           </div>
@@ -62,22 +103,23 @@ export default function FilterPanel({
           <input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Find a category, country, language…"
-            aria-label="Filter options"
+            placeholder={t('findOption')}
+            aria-label={t('filterOptions')}
           />
           {filter && (
-            <button className="icon-btn sm" aria-label="Clear" onClick={() => setFilter('')}><X size={14} /></button>
+            <button className="icon-btn sm" aria-label={t('clear')} onClick={() => setFilter('')}><X size={14} /></button>
           )}
         </label>
 
         <div className="filters-body">
           <label className="switch-row">
             <EyeOff size={16} />
-            <span>Hide broken streams</span>
+            <span>{t('hideDead')}</span>
             <input type="checkbox" className="switch" checked={hideDead} onChange={(e) => onHideDead(e.target.checked)} />
           </label>
 
-          {Object.entries(FACETS).map(([facet, { plural }]) => {
+          {Object.keys(FACETS).map((facet) => {
+            const plural = t({ category: 'categories', country: 'countries', language: 'languages' }[facet]);
             const all = facets[facet] || [];
             const active = selected[facet] || [];
             const matching = q ? all.filter((v) => v.name.toLowerCase().includes(q)) : all;
@@ -118,7 +160,9 @@ export default function FilterPanel({
                           >
                             <span className="check">{on && <Check size={12} strokeWidth={3} />}</span>
                             <span className="facet-name">
-                              {facet === 'country' && flagOf(v.name) && <span className="flag">{flagOf(v.name)}</span>}
+                              {facet === 'country' && flagOf(v.name) && (
+                                <img className="flag" src={flagOf(v.name)} alt="" loading="lazy" width="16" height="12" />
+                              )}
                               {v.name}
                             </span>
                             <em>{v.count.toLocaleString()}</em>
@@ -128,7 +172,7 @@ export default function FilterPanel({
                     </div>
                     {!q && ordered.length > FACET_PREVIEW && (
                       <button className="link-btn facet-more" onClick={() => setExpanded((p) => ({ ...p, [facet]: !p[facet] }))}>
-                        {showAll ? 'Show less' : `Show all ${ordered.length.toLocaleString()}`}
+                        {showAll ? t('showLess') : t('showAll', { n: ordered.length })}
                       </button>
                     )}
                   </>
@@ -137,13 +181,24 @@ export default function FilterPanel({
             );
           })}
 
-          <p className="filters-foot">Streams by iptv-org · free &amp; open</p>
+          <label className="lang-row">
+            <span>{t('language')}</span>
+            <select value={lang} onChange={(e) => setLang(e.target.value)}>
+              {Object.entries(LANGS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+            </select>
+          </label>
+
+          <p className="filters-foot">
+            {t('credits')}
+            {' · '}
+            <button className="link-btn inline" onClick={openPrivacySettings}>{t('privacy')}</button>
+          </p>
         </div>
 
         {/* Phone-only sticky action: shows the live result count. */}
         <div className="filters-apply">
           <button className="btn primary block" onClick={onClose}>
-            Show {resultCount.toLocaleString()} channels
+            {t('showN', { n: resultCount })}
           </button>
         </div>
       </aside>

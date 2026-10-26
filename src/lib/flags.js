@@ -1,5 +1,6 @@
-// Country name → flag emoji, without shipping a lookup table: build the
+// Country name → flag image, without shipping a lookup table: build the
 // reverse map once from Intl.DisplayNames over every two-letter region code.
+// Images rather than emoji: Windows has no flag glyphs and shows "US" instead.
 
 let byName = null;
 
@@ -34,6 +35,5 @@ export function flagOf(country) {
   if (!country) return '';
   if (!byName) build();
   const code = byName.get(country.toLowerCase());
-  if (!code) return '';
-  return String.fromCodePoint(...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
+  return code ? `https://flagcdn.com/${code.toLowerCase()}.svg` : '';
 }

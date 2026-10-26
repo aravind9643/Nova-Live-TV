@@ -1,7 +1,7 @@
 import { useMemo, useState, useDeferredValue, useCallback, useEffect, useRef } from 'react';
 import {
   Search, Tv, WifiOff, Star, History, X, Home, SlidersHorizontal, Clock, RotateCcw,
-  Sun, Moon, Monitor, Play, ArrowUpDown,
+  Sun, Moon, Monitor, Play, ArrowUpDown, Download, Share2, Maximize2,
 } from 'lucide-react';
 import { useCatalogue } from './lib/useCatalogue';
 import { useLibrary, channelKey } from './lib/useLibrary';
@@ -9,6 +9,10 @@ import { useFilters, VIEW_ALL, VIEW_FAVORITES, VIEW_RECENT, SORTS } from './lib/
 import { useAdGuard } from './lib/useAdGuard';
 import { usePrefs } from './lib/usePrefs';
 import { logoSrc, onLogoError } from './lib/img';
+import { slugOf } from './lib/slug';
+import { useI18n } from './lib/i18n';
+import { useOnline, useInstallPrompt } from './lib/useDevice';
+import { favoritesLink, decodeFavorites, readImportToken } from './lib/shareList';
 import { useStreamHealth } from './lib/useStreamHealth';
 import { useScrollMemory } from './lib/useScrollMemory';
 import { searchChannels, loadRecentSearches, pushRecentSearch } from './lib/search';
@@ -19,6 +23,8 @@ import AnchorAd from './components/AnchorAd';
 import MultiplexAd from './components/MultiplexAd';
 import WatchScreen from './components/WatchScreen';
 import Toast from './components/Toast';
+import MiniPlayer from './components/MiniPlayer';
+import PlayerHost from './components/PlayerHost';
 
 // Quick-pick categories shown as a scrollable chip row above the grid.
 const QUICK_CHIPS = 12;
@@ -37,9 +43,18 @@ function setMeta(name, content, attr = 'name') {
 
 export default function App() {
   const { status, channels, facets, stale, enriching } = useCatalogue();
-  const { favorites, recent, isFavorite, toggleFavorite, pushRecent } = useLibrary();
-  const { report, statusOf, isBad } = useStreamHealth();
+  const { favorites, recent, isFavorite, toggleFavorite, addFavorites, pushRecent } = useLibrary();
+  const online = useOnline();
+  const install = useInstallPrompt();
+  const { report, statusOf } = useStreamHealth();
+  // Dead = failed for this viewer recently, or (with no local history) found
+  // unreachable by the nightly build-time health check.
+  const isDead = useCallback((c) => {
+    const s = statusOf(c.url);
+    return s === 'bad' || (s === 'unknown' && !!c.dead);
+  }, [statusOf]);
   const { prefs, setPref } = usePrefs();
+  const { t } = useI18n();
   const {
     selected, query, view, sort, play: playParam,
     update, toggleFacet, clearFacets, activeChips,
@@ -50,6 +65,10 @@ export default function App() {
   const [recentSearches, setRecentSearches] = useState(loadRecentSearches);
   const [searchFocused, setSearchFocused] = useState(false);
   const [toast, setToast] = useState(null);
+  // The channel that keeps playing in the corner after leaving the watch screen.
+  const [mini, setMini] = useState(null);
+  // Where the shared player is drawn: the watch screen's stage or the mini box.
+  const [slot, setSlot] = useState(null);
 
   const mainRef = useRef(null);
   const searchRef = useRef(null);
@@ -90,10 +109,10 @@ export default function App() {
     }
     const live = [];
     const dead = [];
-    for (const c of found) (isBad(c.url) ? dead : live).push(c);
+    for (const c of found) (isDead(c) ? dead : live).push(c);
     if (prefs.hideDead) return live;
     return dead.length ? [...live, ...dead] : found;
-  }, [facetFiltered, deferredQuery, isBad, statusOf, sort, prefs.hideDead]);
+  }, [facetFiltered, deferredQuery, isDead, statusOf, sort, prefs.hideDead]);
 
   // Restore scroll per distinct view.
   const viewKey = useMemo(
@@ -105,8 +124,9 @@ export default function App() {
   // ---- deep-link resolution ------------------------------------------------
   useEffect(() => {
     if (!playParam || playing || !channels.length) return;
-    const found = [...channels, ...favorites, ...recent].find((c) => channelKey(c) === playParam);
-    if (found) { setPlaying(found); pushRecent(found); }
+    const found = [...channels, ...favorites, ...recent]
+      .find((c) => slugOf(c) === playParam || channelKey(c) === playParam);
+    if (found) { playingRef.current = found; setPlaying(found); pushRecent(found); }
   }, [playParam, channels, favorites, recent, playing, pushRecent]);
 
   // Per-view title, description and canonical URL. Single-facet views live at
@@ -155,17 +175,20 @@ export default function App() {
   // ---- actions -------------------------------------------------------------
   // Tracks whether opening the player pushed a history entry we still owe a pop.
   const pushedEntry = useRef(false);
+  // Mirrors `playing` synchronously so play() can decide push vs replace
+  // without reading state inside an updater.
+  const playingRef = useRef(null);
 
   const play = useCallback((c) => {
-    setPlaying((prev) => {
-      // Opening the player from the grid adds ONE history entry, so Back returns
-      // to the channel list. Zapping between channels replaces it, so Back
-      // doesn't have to unwind every channel you flicked through.
-      const shouldPush = !prev;
-      if (shouldPush) pushedEntry.current = true;
-      update({ play: channelKey(c) }, { push: shouldPush });
-      return c;
-    });
+    // Opening the player from the grid adds ONE history entry, so Back returns
+    // to the channel list. Zapping between channels replaces it, so Back
+    // doesn't have to unwind every channel you flicked through.
+    const shouldPush = !playingRef.current;
+    if (shouldPush) pushedEntry.current = true;
+    playingRef.current = c;
+    setPlaying(c);
+    setMini(null);
+    update({ play: slugOf(c) }, { push: shouldPush });
     pushRecent(c);                    // the watch screen's rail reads this
     if (query.trim()) setRecentSearches(pushRecentSearch(query));
   }, [update, query, pushRecent]);
@@ -178,6 +201,8 @@ export default function App() {
       window.history.back();
     } else {
       // Arrived via a deep link — no entry of ours to pop.
+      setMini(playingRef.current);
+      playingRef.current = null;
       setPlaying(null);
       update({ play: null });
     }
@@ -188,6 +213,8 @@ export default function App() {
   useEffect(() => {
     if (!playParam && playing) {
       pushedEntry.current = false; // the entry was consumed by the Back press
+      playingRef.current = null;
+      setMini(playing); // keep watching in the corner
       setPlaying(null);
     }
   }, [playParam, playing]);
@@ -204,9 +231,9 @@ export default function App() {
       if (!cand) continue;
       // Take the first healthy channel; on the last hop accept whatever's there
       // so a fully-dead list still moves rather than freezing.
-      if (!isBad(cand.url) || step === n) { play(cand); return; }
+      if (!isDead(cand) || step === n) { play(cand); return; }
     }
-  }, [playing, results, isBad, play]);
+  }, [playing, results, isDead, play]);
 
   const setView = useCallback((v) => {
     update({ view: v, selected: { category: [], country: [], language: [] } });
@@ -219,11 +246,38 @@ export default function App() {
     toggleFavorite(c);
     setToast({
       id: Date.now(),
-      message: was ? `Removed ${c.name} from favorites` : `Added ${c.name} to favorites`,
-      action: { label: 'Undo', run: () => toggleFavorite(c) },
+      message: t(was ? 'removedFav' : 'addedFav', { name: c.name }),
+      action: { label: t('undo'), run: () => toggleFavorite(c) },
     });
-  }, [isFavorite, toggleFavorite]);
+  }, [isFavorite, toggleFavorite, t]);
   const clearToast = useCallback(() => setToast(null), []);
+
+  // A shared favorites link (#import=…): offer to merge it, then drop the
+  // token from the URL either way.
+  useEffect(() => {
+    const token = readImportToken();
+    if (!token) return;
+    const list = decodeFavorites(token);
+    update({}); // rewrites the URL without the unknown `import` param
+    if (!list.length) return;
+    setToast({
+      id: Date.now(),
+      duration: 15000,
+      message: t('importPrompt', { n: list.length }),
+      action: { label: t('import'), run: () => { addFavorites(list); update({ view: VIEW_FAVORITES }); } },
+    });
+  }, [update, addFavorites, t]);
+
+  const shareFavorites = useCallback(async () => {
+    const url = favoritesLink(favorites);
+    try {
+      if (navigator.share) await navigator.share({ title: t('shareFavsTitle'), url });
+      else {
+        await navigator.clipboard.writeText(url);
+        setToast({ id: Date.now(), message: t('linkCopiedFavs') });
+      }
+    } catch { /* dismissed */ }
+  }, [favorites, t]);
 
   const goHome = useCallback(() => {
     update({ view: VIEW_ALL, query: '', selected: { category: [], country: [], language: [] } });
@@ -246,14 +300,37 @@ export default function App() {
   const showSearchSuggestions = searchFocused && !query && recentSearches.length > 0;
   const quickCats = facets.category.slice(0, QUICK_CHIPS);
   const activeCats = selected.category || [];
-  const heading = view === VIEW_FAVORITES ? 'Favorites'
-    : view === VIEW_RECENT ? 'Recently watched'
-    : query.trim() ? `Results for “${query.trim()}”`
+  const heading = view === VIEW_FAVORITES ? t('favorites')
+    : view === VIEW_RECENT ? t('recentlyWatched')
+    : query.trim() ? t('resultsFor', { q: query.trim() })
     : activeChips.length ? activeChips.map((c) => c.value).join(' · ')
-    : 'All channels';
+    : t('allChannels');
   const isHome = view === VIEW_ALL && !query && !activeChips.length;
   const resume = isHome ? recent[0] : null;
   const ThemeIcon = THEMES[prefs.theme] || Monitor;
+
+  // One player instance across both screens, so docking/undocking never
+  // restarts the stream.
+  const active = playing || mini;
+  const host = active && (
+    playing ? (
+      <PlayerHost
+        channel={playing}
+        slot={slot}
+        mode="full"
+        onPrev={results.length > 1 ? () => zap(-1) : undefined}
+        onNext={results.length > 1 ? () => zap(1) : undefined}
+        onBack={closePlayer}
+        onHealth={report}
+      />
+    ) : (
+      <PlayerHost channel={mini} slot={slot} mode="mini" onHealth={report}>
+        <button className="mini-expand" onClick={() => play(mini)} aria-label={t('expand', { name: mini.name })}>
+          <Maximize2 size={18} />
+        </button>
+      </PlayerHost>
+    )
+  );
 
   // Watching is a distinct screen, not an overlay — the browse UI unmounts so
   // nothing renders behind the video (and the grid can't steal scroll/GPU).
@@ -265,136 +342,236 @@ export default function App() {
           recent={recent}
           upNext={upNext}
           onBack={closePlayer}
-          onPrev={results.length > 1 ? () => zap(-1) : undefined}
-          onNext={results.length > 1 ? () => zap(1) : undefined}
           onPlay={play}
+          onSlot={setSlot}
           favorite={isFavorite(playing)}
           onToggleFavorite={toggleFav}
-          onHealth={report}
           statusOf={statusOf}
         />
+        {host}
         <Toast toast={toast} onDone={clearToast} />
       </>
     );
   }
 
   const navItems = [
-    { key: 'home', label: 'Home', icon: Home, active: view === VIEW_ALL && !menuOpen, onClick: goHome },
-    { key: 'filters', label: 'Filters', icon: SlidersHorizontal, active: menuOpen, onClick: () => setMenuOpen(true), badge: activeChips.length },
-    { key: 'fav', label: 'Favorites', icon: Star, active: view === VIEW_FAVORITES && !menuOpen, onClick: () => setView(VIEW_FAVORITES), badge: favorites.length },
-    { key: 'recent', label: 'Recent', icon: History, active: view === VIEW_RECENT && !menuOpen, onClick: () => setView(VIEW_RECENT) },
+    { key: 'home', label: t('home'), icon: Home, active: view === VIEW_ALL && !menuOpen, onClick: goHome },
+    { key: 'filters', label: t('filters'), icon: SlidersHorizontal, active: menuOpen, onClick: () => setMenuOpen(true), badge: activeChips.length },
+    { key: 'fav', label: t('favorites'), icon: Star, active: view === VIEW_FAVORITES && !menuOpen, onClick: () => setView(VIEW_FAVORITES), badge: favorites.length },
+    { key: 'recent', label: t('recent'), icon: History, active: view === VIEW_RECENT && !menuOpen, onClick: () => setView(VIEW_RECENT) },
   ];
 
+  // Same shape as the watch-screen branch — [screen, host, toast] — so React
+  // keeps the <PlayerHost> (and its <video>) mounted when switching screens.
   return (
-    <div className="app">
-      {/* ---------------- Header ---------------- */}
-      <header className="topbar">
-        <button className="brand" onClick={goHome} aria-label="NOVA Live TV — home">
-          <span className="brand-mark"><Tv size={20} /></span>
-          <span className="brand-name">NOVA<span>Live TV</span></span>
-        </button>
+    <>
+      <div className="app">
+        <a className="skip-link" href="#content">{t('skip')}</a>
 
-        <div className="search">
-          <label className="field">
-            <Search size={18} />
-            <input
-              ref={searchRef}
-              type="search"
-              enterKeyHint="search"
-              value={query}
-              onChange={(e) => update({ query: e.target.value })}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setTimeout(() => setSearchFocused(false), 120)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && query.trim()) { setRecentSearches(pushRecentSearch(query)); e.currentTarget.blur(); }
-                if (e.key === 'Escape') update({ query: '' });
-              }}
-              placeholder="Search 13,000+ channels"
-              aria-label="Search channels"
-            />
-            {query && (
-              <button className="icon-btn sm" aria-label="Clear search" onClick={() => { update({ query: '' }); searchRef.current?.focus(); }}>
-                <X size={16} />
-              </button>
+        {/* ---------------- Header ---------------- */}
+        <header className="topbar">
+          <button className="brand" onClick={goHome} aria-label="NOVA Live TV — home">
+            <span className="brand-mark"><Tv size={20} /></span>
+            <span className="brand-name">NOVA<span>Live TV</span></span>
+          </button>
+
+          <div className="search">
+            <label className="field">
+              <Search size={18} />
+              <input
+                ref={searchRef}
+                type="search"
+                enterKeyHint="search"
+                value={query}
+                onChange={(e) => update({ query: e.target.value })}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setTimeout(() => setSearchFocused(false), 120)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && query.trim()) { setRecentSearches(pushRecentSearch(query)); e.currentTarget.blur(); }
+                  if (e.key === 'Escape') update({ query: '' });
+                }}
+                placeholder={t('search')}
+                aria-label={t('searchLabel')}
+              />
+              {query && (
+                <button className="icon-btn sm" aria-label={t('clearSearch')} onClick={() => { update({ query: '' }); searchRef.current?.focus(); }}>
+                  <X size={16} />
+                </button>
+              )}
+            </label>
+
+            {showSearchSuggestions && (
+              <div className="suggest pop-in">
+                <div className="suggest-head"><Clock size={13} /> {t('recentSearches')}</div>
+                {recentSearches.map((term) => (
+                  <button key={term} className="suggest-item" onMouseDown={() => update({ query: term })}>
+                    <Search size={14} /> {term}
+                  </button>
+                ))}
+              </div>
             )}
-          </label>
+          </div>
 
-          {showSearchSuggestions && (
-            <div className="suggest pop-in">
-              <div className="suggest-head"><Clock size={13} /> Recent searches</div>
-              {recentSearches.map((t) => (
-                <button key={t} className="suggest-item" onMouseDown={() => update({ query: t })}>
-                  <Search size={14} /> {t}
+          <nav className="top-nav" aria-label="Library">
+            <button className={`pill ${view === VIEW_FAVORITES ? 'on' : ''}`} onClick={() => setView(view === VIEW_FAVORITES ? VIEW_ALL : VIEW_FAVORITES)}>
+              <Star size={15} /> {t('favorites')}{favorites.length ? <em>{favorites.length}</em> : null}
+            </button>
+            <button className={`pill ${view === VIEW_RECENT ? 'on' : ''}`} onClick={() => setView(view === VIEW_RECENT ? VIEW_ALL : VIEW_RECENT)}>
+              <History size={15} /> {t('recent')}
+            </button>
+          </nav>
+
+          {install && (
+            <button className="pill install-btn" onClick={install}>
+              <Download size={15} /> {t('install')}
+            </button>
+          )}
+
+          <button
+            className="icon-btn theme-btn"
+            onClick={() => setPref('theme', NEXT_THEME[prefs.theme] || 'system')}
+            aria-label={t('theme', { name: t(`theme${prefs.theme[0].toUpperCase()}${prefs.theme.slice(1)}`) })}
+            title={t('theme', { name: t(`theme${prefs.theme[0].toUpperCase()}${prefs.theme.slice(1)}`) })}
+          >
+            <ThemeIcon size={19} />
+          </button>
+        </header>
+
+        {/* ---------------- Filters (sheet on phones, sidebar on desktop) ---------------- */}
+        <FilterPanel
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          facets={facets}
+          selected={selected}
+          toggleFacet={toggleFacet}
+          clearFacets={clearFacets}
+          activeCount={activeChips.length}
+          resultCount={results.length}
+          hideDead={prefs.hideDead}
+          onHideDead={(v) => setPref('hideDead', v)}
+        />
+
+        {/* ---------------- Main ---------------- */}
+        <main className="main" ref={mainRef} id="content" tabIndex={-1}>
+          {status === 'loading' && view === VIEW_ALL && (
+            <div className="quick" aria-hidden>
+              {Array.from({ length: 8 }, (_, i) => <span key={i} className="chip skel-box skel-chip" />)}
+            </div>
+          )}
+          {status === 'ready' && view === VIEW_ALL && quickCats.length > 0 && (
+            <div className="quick" role="toolbar" aria-label={t('quickCategories')}>
+              <button className={`chip ${!activeCats.length ? 'on' : ''}`} onClick={() => update({ selected: { ...selected, category: [] } })}>
+                {t('all')}
+              </button>
+              {quickCats.map((c) => (
+                <button
+                  key={c.name}
+                  className={`chip ${activeCats.includes(c.name) ? 'on' : ''}`}
+                  onClick={() => toggleFacet('category', c.name)}
+                  aria-pressed={activeCats.includes(c.name)}
+                >
+                  {c.name}
                 </button>
               ))}
             </div>
           )}
-        </div>
 
-        <nav className="top-nav" aria-label="Library">
-          <button className={`pill ${view === VIEW_FAVORITES ? 'on' : ''}`} onClick={() => setView(view === VIEW_FAVORITES ? VIEW_ALL : VIEW_FAVORITES)}>
-            <Star size={15} /> Favorites{favorites.length ? <em>{favorites.length}</em> : null}
-          </button>
-          <button className={`pill ${view === VIEW_RECENT ? 'on' : ''}`} onClick={() => setView(view === VIEW_RECENT ? VIEW_ALL : VIEW_RECENT)}>
-            <History size={15} /> Recent
-          </button>
-        </nav>
+          <div className="content">
+            {!online && (
+              <div className="notice offline" role="status">
+                <WifiOff size={15} /> {t('offline')}
+              </div>
+            )}
 
-        <button
-          className="icon-btn theme-btn"
-          onClick={() => setPref('theme', NEXT_THEME[prefs.theme] || 'system')}
-          aria-label={`Theme: ${prefs.theme}. Switch theme`}
-          title={`Theme: ${prefs.theme}`}
-        >
-          <ThemeIcon size={19} />
-        </button>
-      </header>
+            {(stale || enriching) && (
+              <div className="notice">
+                <span className="live-dot" />
+                {stale ? t('stale') : t('enriching')}
+              </div>
+            )}
 
-      {/* ---------------- Filters (sheet on phones, sidebar on desktop) ---------------- */}
-      <FilterPanel
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        facets={facets}
-        selected={selected}
-        toggleFacet={toggleFacet}
-        clearFacets={clearFacets}
-        activeCount={activeChips.length}
-        resultCount={results.length}
-        hideDead={prefs.hideDead}
-        onHideDead={(v) => setPref('hideDead', v)}
-      />
+            {/* Loading and loaded states share one layout skeleton — head, ad
+                slot, grid — so nothing jumps when the channels arrive (CLS). */}
+            {status === 'loading' && (
+              <div className="section-head" aria-hidden>
+                <div className="section-title"><span className="skel-line" style={{ width: 160, height: 26 }} /></div>
+                <span className="skel-box skel-pill" />
+              </div>
+            )}
 
-      {/* ---------------- Main ---------------- */}
-      <main className="main" ref={mainRef}>
-        {status === 'ready' && view === VIEW_ALL && quickCats.length > 0 && (
-          <div className="quick" role="toolbar" aria-label="Quick categories">
-            <button className={`chip ${!activeCats.length ? 'on' : ''}`} onClick={() => update({ selected: { ...selected, category: [] } })}>
-              All
-            </button>
-            {quickCats.map((c) => (
-              <button
-                key={c.name}
-                className={`chip ${activeCats.includes(c.name) ? 'on' : ''}`}
-                onClick={() => toggleFacet('category', c.name)}
-                aria-pressed={activeCats.includes(c.name)}
-              >
-                {c.name}
-              </button>
-            ))}
-          </div>
-        )}
+            {status === 'error' && (
+              <div className="empty">
+                <span className="empty-icon"><WifiOff size={28} /></span>
+                <h2>{t('errorTitle')}</h2>
+                <p>{t('errorText')}</p>
+                <button className="btn primary" onClick={() => window.location.reload()}>
+                  <RotateCcw size={16} /> {t('retry')}
+                </button>
+              </div>
+            )}
 
-        <div className="content">
-          {(stale || enriching) && (
-            <div className="notice">
-              <span className="live-dot" />
-              {stale ? 'Showing saved channels — refreshing in the background…' : 'Loading country & language filters…'}
-            </div>
-          )}
+            {status === 'ready' && (
+              <>
+                {resume && (
+                  <button className="resume" onClick={() => play(resume)}>
+                    <span className="resume-thumb">
+                      {resume.logo
+                        ? <img src={logoSrc(resume.logo, 120)} alt="" onError={(e) => onLogoError(e, resume.logo)} />
+                        : <Tv size={22} />}
+                    </span>
+                    <span className="resume-text">
+                      <span className="resume-label">{t('continueWatching')}</span>
+                      <span className="resume-name">{resume.name}</span>
+                    </span>
+                    <span className="resume-play"><Play size={18} fill="currentColor" /></span>
+                  </button>
+                )}
 
-          {status === 'loading' && (
-            <>
-              <div className="section-head"><span className="skel-line" style={{ width: 160, height: 22 }} /></div>
+                <div className="section-head">
+                  <div className="section-title">
+                    <h1>{heading}</h1>
+                    <span className="count"><span className="live-dot" /> {t('live', { n: results.length })}</span>
+                  </div>
+                  {view === VIEW_FAVORITES && favorites.length > 0 && (
+                    <button className="pill share-list" onClick={shareFavorites}>
+                      <Share2 size={15} /> {t('shareList')}
+                    </button>
+                  )}
+                  <label className="sort">
+                    <ArrowUpDown size={14} />
+                    <select value={sort} onChange={(e) => update({ sort: e.target.value })} aria-label={t('sortLabel')}>
+                      {Object.keys(SORTS).map((k) => (
+                        <option key={k} value={k}>{t(`sort${k[0].toUpperCase()}${k.slice(1)}`)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  {(activeChips.length > 0 || view !== VIEW_ALL) && (
+                    <div className="active-chips">
+                      {view !== VIEW_ALL && (
+                        <span className="chip on removable">
+                          {view === VIEW_FAVORITES ? t('favorites') : t('recent')}
+                          <button onClick={() => setView(VIEW_ALL)} aria-label={t('clearView')}><X size={13} /></button>
+                        </span>
+                      )}
+                      {activeChips.map(({ facet, value }) => (
+                        <span key={`${facet}:${value}`} className="chip on removable">
+                          {value}
+                          <button onClick={() => toggleFacet(facet, value)} aria-label={t('remove', { name: value })}><X size={13} /></button>
+                        </span>
+                      ))}
+                      {activeChips.length > 1 && (
+                        <button className="link-btn" onClick={clearFacets}>{t('clearAll')}</button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Same position in both states, so the ad isn't re-requested. */}
+            {status !== 'error' && <AdSlot slot="grid" format="fluid" className="ad-grid" />}
+
+            {status === 'loading' && (
               <div className="grid" aria-hidden>
                 {Array.from({ length: 12 }).map((_, i) => (
                   <div key={i} className="card skel">
@@ -406,125 +583,75 @@ export default function App() {
                   </div>
                 ))}
               </div>
-            </>
-          )}
+            )}
 
-          {status === 'error' && (
-            <div className="empty">
-              <span className="empty-icon"><WifiOff size={28} /></span>
-              <h2>Can’t reach the channel list</h2>
-              <p>Check your connection and try again.</p>
-              <button className="btn primary" onClick={() => window.location.reload()}>
-                <RotateCcw size={16} /> Retry
-              </button>
-            </div>
-          )}
-
-          {status === 'ready' && (
-            <>
-              {resume && (
-                <button className="resume" onClick={() => play(resume)}>
-                  <span className="resume-thumb">
-                    {resume.logo
-                      ? <img src={logoSrc(resume.logo, 120)} alt="" onError={(e) => onLogoError(e, resume.logo)} />
-                      : <Tv size={22} />}
-                  </span>
-                  <span className="resume-text">
-                    <span className="resume-label">Continue watching</span>
-                    <span className="resume-name">{resume.name}</span>
-                  </span>
-                  <span className="resume-play"><Play size={18} fill="currentColor" /></span>
-                </button>
-              )}
-
-              <div className="section-head">
-                <div className="section-title">
-                  <h1>{heading}</h1>
-                  <span className="count"><span className="live-dot" /> {results.length.toLocaleString()} live</span>
-                </div>
-                <label className="sort">
-                  <ArrowUpDown size={14} />
-                  <select value={sort} onChange={(e) => update({ sort: e.target.value })} aria-label="Sort channels">
-                    {Object.entries(SORTS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-                  </select>
-                </label>
-                {(activeChips.length > 0 || view !== VIEW_ALL) && (
-                  <div className="active-chips">
-                    {view !== VIEW_ALL && (
-                      <span className="chip on removable">
-                        {view === VIEW_FAVORITES ? 'Favorites' : 'Recent'}
-                        <button onClick={() => setView(VIEW_ALL)} aria-label="Clear view"><X size={13} /></button>
-                      </span>
-                    )}
-                    {activeChips.map(({ facet, value }) => (
-                      <span key={`${facet}:${value}`} className="chip on removable">
-                        {value}
-                        <button onClick={() => toggleFacet(facet, value)} aria-label={`Remove ${value}`}><X size={13} /></button>
-                      </span>
-                    ))}
-                    {activeChips.length > 1 && (
-                      <button className="link-btn" onClick={clearFacets}>Clear all</button>
+            {status === 'ready' && (
+              <>
+                {results.length > 0 ? (
+                  <>
+                    <VirtualGrid
+                      items={results}
+                      scrollParent={mainRef}
+                      onPlay={play}
+                      isFavorite={isFavorite}
+                      onToggleFavorite={toggleFav}
+                      statusOf={statusOf}
+                    />
+                  </>
+                ) : (
+                  <div className="empty">
+                    <span className="empty-icon">
+                      {view === VIEW_FAVORITES ? <Star size={28} /> : view === VIEW_RECENT ? <History size={28} /> : <Search size={28} />}
+                    </span>
+                    <h2>
+                      {view === VIEW_FAVORITES ? t('noFavorites')
+                        : view === VIEW_RECENT ? t('noRecent')
+                        : t('noResults')}
+                    </h2>
+                    <p>
+                      {view === VIEW_FAVORITES ? t('noFavoritesText')
+                        : view === VIEW_RECENT ? t('noRecentText')
+                        : query ? t('noMatch', { q: query })
+                        : t('noFilterMatch')}
+                    </p>
+                    {(activeChips.length > 0 || query || view !== VIEW_ALL) && (
+                      <button className="btn" onClick={goHome}>{t('browseAll')}</button>
                     )}
                   </div>
                 )}
-              </div>
 
-              <AdSlot slot="grid" format="fluid" className="ad-grid" />
+                <MultiplexAd />
+              </>
+            )}
+          </div>
+        </main>
 
-              {results.length > 0 ? (
-                <>
-                  <VirtualGrid
-                    items={results}
-                    scrollParent={mainRef}
-                    onPlay={play}
-                    isFavorite={isFavorite}
-                    onToggleFavorite={toggleFav}
-                    statusOf={statusOf}
-                  />
-                </>
-              ) : (
-                <div className="empty">
-                  <span className="empty-icon">
-                    {view === VIEW_FAVORITES ? <Star size={28} /> : view === VIEW_RECENT ? <History size={28} /> : <Search size={28} />}
-                  </span>
-                  <h2>
-                    {view === VIEW_FAVORITES ? 'No favorites yet'
-                      : view === VIEW_RECENT ? 'Nothing watched yet'
-                      : 'No channels found'}
-                  </h2>
-                  <p>
-                    {view === VIEW_FAVORITES ? 'Tap the star on any channel to keep it here.'
-                      : view === VIEW_RECENT ? 'Channels you watch will show up here.'
-                      : query ? `Nothing matches “${query}”. Try a different name.`
-                      : 'Try removing a filter or two.'}
-                  </p>
-                  {(activeChips.length > 0 || query || view !== VIEW_ALL) && (
-                    <button className="btn" onClick={goHome}>Browse all channels</button>
-                  )}
-                </div>
-              )}
+        {/* ---------------- Bottom navigation (phones & tablets) ---------------- */}
+        <nav className="bottom-nav" aria-label="Primary">
+          {navItems.map(({ key, label, icon: Icon, active, onClick, badge }) => (
+            <button key={key} className={`nav-item ${active ? 'on' : ''}`} onClick={onClick} aria-current={active ? 'page' : undefined}>
+              <span className="nav-icon">
+                <Icon size={22} />
+                {badge > 0 && <span className="nav-badge">{badge > 99 ? '99+' : badge}</span>}
+              </span>
+              <span className="nav-label">{label}</span>
+            </button>
+          ))}
+        </nav>
 
-              <MultiplexAd />
-            </>
-          )}
-        </div>
-      </main>
+        {mini && (
+          <MiniPlayer
+            channel={mini}
+            onSlot={setSlot}
+            onExpand={() => play(mini)}
+            onClose={() => setMini(null)}
+          />
+        )}
 
-      {/* ---------------- Bottom navigation (phones & tablets) ---------------- */}
-      <nav className="bottom-nav" aria-label="Primary">
-        {navItems.map(({ key, label, icon: Icon, active, onClick, badge }) => (
-          <button key={key} className={`nav-item ${active ? 'on' : ''}`} onClick={onClick} aria-current={active ? 'page' : undefined}>
-            <span className="nav-icon">
-              <Icon size={22} />
-              {badge > 0 && <span className="nav-badge">{badge > 99 ? '99+' : badge}</span>}
-            </span>
-            <span className="nav-label">{label}</span>
-          </button>
-        ))}
-      </nav>
-
-      <AnchorAd />
+        <AnchorAd />
+      </div>
+      {host}
       <Toast toast={toast} onDone={clearToast} />
-    </div>
+    </>
   );
 }
