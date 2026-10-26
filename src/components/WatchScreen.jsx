@@ -5,6 +5,7 @@ import {
 import { channelKey } from '../lib/useLibrary';
 import AdSlot from './AdSlot';
 import { useI18n } from '../lib/i18n';
+import { useMediaQuery, DESKTOP_QUERY } from '../lib/useDevice';
 import { logoSrc, onLogoError } from '../lib/img';
 import { flagOf } from '../lib/flags';
 
@@ -26,6 +27,7 @@ export default function WatchScreen({
   favorite, onToggleFavorite, statusOf,
 }) {
   const { t } = useI18n();
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const [shared, setShared] = useState(false);
   // Don't show the channel you're already watching in the rail.
   const rail = recent.filter((c) => channelKey(c) !== channelKey(channel));
@@ -99,7 +101,9 @@ export default function WatchScreen({
             </p>
           </section>
 
-          <AdSlot slot="player" format="auto" className="ad-player" />
+          {/* Desktop: beside the queue. Phones: after it (see below), so the ad
+              never sits between the video and the next channels. */}
+          {isDesktop && <AdSlot slot="player" format="auto" className="ad-player" />}
         </div>
 
         <aside className="watch-side">
@@ -149,6 +153,7 @@ export default function WatchScreen({
               </div>
             </section>
           )}
+          {!isDesktop && <AdSlot slot="player" format="auto" className="ad-player" />}
         </aside>
       </div>
     </div>

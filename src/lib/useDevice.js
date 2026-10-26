@@ -1,5 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 
+// Desktop layout breakpoint — must match the 1024px query in styles.css.
+export const DESKTOP_QUERY = '(min-width: 1024px)';
+
+export function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const on = () => setMatches(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, [query]);
+  return matches;
+}
+
 // navigator.onLine, kept live.
 export function useOnline() {
   const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));

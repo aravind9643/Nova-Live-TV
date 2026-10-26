@@ -63,7 +63,14 @@ export function useAdGuard() {
         const nearTop = r.top < 90;
         const nearBottom = r.bottom > window.innerHeight - 90;
 
-        if (isAnchor && nearBottom && !nearTop) continue; // bottom anchor is fine
+        // Phones have a bottom tab bar and our own (polite) anchor already —
+        // a second, auto-placed sticky banner would cover navigation.
+        if (isAnchor && window.innerWidth < 1024) {
+          host.style.setProperty('display', 'none', 'important');
+          continue;
+        }
+
+        if (isAnchor && nearBottom && !nearTop) continue; // bottom anchor is fine (desktop)
 
         if (isAnchor && nearTop) {
           host.style.setProperty('top', 'auto', 'important');
